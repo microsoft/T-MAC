@@ -48,6 +48,10 @@ This project used TVM for kernel code-generation and auto-tuning.
 - tvm
 - tvm-rpc: If you want to tune the kernels yourself on M1/M2 Mac or Android instead of provided tuned configurations, please setup tvm-rpc following [the official documentation](https://github.com/apache/tvm/tree/main/apps/cpp_rpc).
 
+### Installation
+
+Install this project from source with `pip install -e .`.
+
 ### From Python
 
 Compared to normal GeMM, the weights need to be first offline preprocessed. Please refer to [the E2E inference example](./tests/test_e2e.py).
