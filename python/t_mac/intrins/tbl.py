@@ -72,6 +72,12 @@ def tbl(
         C.shape, C.dtype, name="c_buffer", offset_factor=1, strides=[1],
     )
 
+    def to_intrinstr(t):
+        if t == "float16" or t == "float32":
+            return "float"
+        else:
+            return t
+
     def _intrin_func(ins, outs):
         def _body():
             ib = tvm.tir.ir_builder.create()
@@ -88,7 +94,7 @@ def tbl(
             ib.emit(
                 tvm.tir.call_extern(
                     "int32",
-                    f"tbl_g{g}_{dtype}_update_{str(has_scale).lower()}_{kfactor}_{bits}",
+                    f"tbl_g{g}_{to_intrinstr(dtype)}_{to_intrinstr(out_dtype)}_update_{str(has_scale).lower()}_{kfactor}_{bits}",
                     *args,
                 )
             )
@@ -99,7 +105,7 @@ def tbl(
             ib.emit(
                 tvm.tir.call_extern(
                     "int32",
-                    f"tbl_g{g}_{dtype}_reset",
+                    f"tbl_{to_intrinstr(dtype)}_reset",
                     m,
                     c_buffer.access_ptr("w"),
                 )
@@ -116,6 +122,7 @@ def tbl(
 
     temp = utils.tempdir()
     ll_path = temp.relpath("tbl.ll")
+    cc_opts.append("-I" + os.path.dirname(__file__))
     ll_code = clang.create_llvm(
         cc_code,
         output=ll_path,

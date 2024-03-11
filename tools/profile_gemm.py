@@ -79,7 +79,7 @@ def profile_gemv_codegen(
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-o", "--out_path", type=str, default="out")
-    parser.add_argument("-d", "--device", type=str, choices=["m2", "android"], default="m2")
+    parser.add_argument("-d", "--device", type=str, choices=["m2", "android", "intel_win"], default="m2")
     parser.add_argument("-tgt", "--target", type=str, choices=["llvm", "opencl", "vulkan"], default="llvm")
     parser.add_argument("-ta", "--thread_affinity", type=int, default=1)
     parser.add_argument("-t", "--tune", action="store_true")
@@ -146,6 +146,13 @@ def main():
             "build_func": "ndk",
             "timeout": 600,
         }
+    elif FLAGS.device == "intel_win":
+        target = "llvm -mtriple=x86_64-pc-windows-msvc"
+        eval_kwargs = {
+            "number": 100,
+            "repeat": 10,
+        }
+        remote_kwargs = None
 
     for MKN in MKNs:
         for num_threads in threads:
