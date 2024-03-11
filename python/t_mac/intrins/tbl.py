@@ -122,13 +122,14 @@ def tbl(
 
     temp = utils.tempdir()
     ll_path = temp.relpath("tbl.ll")
-    cc_opts.append("-I" + os.path.dirname(__file__))
+    cc_opts = (cc_opts or []) + ["-I" + os.path.dirname(__file__)]
     ll_code = clang.create_llvm(
         cc_code,
         output=ll_path,
         options=cc_opts,
         cc=cc,
     )
+    import pdb; pdb.set_trace()
 
     buffer_params = {"offset_factor": 1}
     binds = {LUT: lut_buffer, A: a_buffer, Scales: scales_buffer, C: c_buffer}

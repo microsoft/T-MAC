@@ -461,12 +461,8 @@ int32_t tbl_float_reset(int32_t m, float_type* c) {
 
 tbl_g4_update(true, 8, 2)
 tbl_g4_update(true, 16, 2)
-tbl_g4_update(false, 8, 2)
-tbl_g4_update(false, 16, 2)
 tbl_g4_update(true, 8, 4)
 tbl_g4_update(true, 16, 4)
-tbl_g4_update(false, 8, 4)
-tbl_g4_update(false, 16, 4)
 
 #ifdef __cplusplus
 }
