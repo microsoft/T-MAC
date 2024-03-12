@@ -1,4 +1,5 @@
 from t_mac.ops import GeMMCodegen, GeMMCLCodegen, QGeMMLUTBitsCodegen
+import t_mac.utils
 import logging
 import os
 from typing import Tuple
@@ -19,7 +20,9 @@ def profile_gemv_codegen(
     target: str,
     remote_kwargs: Optional[dict] = None,
     dtype: str = "int8",
-    **eval_kwargs,
+    cc_opts: Optional[list] = None,
+    eval_kwargs: Optional[dict] = None,
+    out_dtype: str = "float16",
 ):
     M, K, N = MKN
     if target == "opencl" or target == "vulkan":
@@ -37,6 +40,8 @@ def profile_gemv_codegen(
         "reuse_tuned": FLAGS.reuse_tuned,
         "remote_kwargs": remote_kwargs,
         "bits": bits,
+        "cc_opts": cc_opts,
+        "out_dtype": out_dtype,
     }
 
     codegen_keys = [
@@ -79,7 +84,7 @@ def profile_gemv_codegen(
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-o", "--out_path", type=str, default="out")
-    parser.add_argument("-d", "--device", type=str, choices=["m2", "android"], default="m2")
+    parser.add_argument("-d", "--device", type=str, choices=["m2", "android", "intel_win"], default="m2")
     parser.add_argument("-tgt", "--target", type=str, choices=["llvm", "opencl", "vulkan"], default="llvm")
     parser.add_argument("-ta", "--thread_affinity", type=int, default=1)
     parser.add_argument("-t", "--tune", action="store_true")
@@ -105,9 +110,10 @@ def main():
 
     threads = [
         # 1,
-        # 4,
+        # 2,
+        4,
         # 8,
-        16,
+        # 16,
     ]
 
     dtypes = [
@@ -115,37 +121,9 @@ def main():
         # "float16",
     ]
     header = True
-    bits = 4
+    bits = 2
 
-    if FLAGS.device == "m2":
-        target = "llvm -mtriple=arm64-apple-darwin23.1.0 -mcpu=apple-m2"
-        eval_kwargs = {
-            "number": 1000,
-            "repeat": 100,
-        }
-        remote_kwargs = {
-            "key": "local",
-            "host": os.environ["TVM_TRACKER_HOST"],
-            "port": int(os.environ["TVM_TRACKER_PORT"]),
-            "build_func": "default",
-            "timeout": 600,
-        }
-    elif FLAGS.device == "android":
-        if FLAGS.target == "llvm":
-            target = "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+fullfp16,+fp-armv8,+neon"
-        else:
-            target = FLAGS.target
-        eval_kwargs = {
-            "number": 10,
-            "repeat": 10,
-        }
-        remote_kwargs = {
-            "key": "android",
-            "host": os.environ["TVM_TRACKER_HOST"],
-            "port": int(os.environ["TVM_TRACKER_PORT"]),
-            "build_func": "ndk",
-            "timeout": 600,
-        }
+    device_kwargs = t_mac.utils.get_default_device_kwargs(FLAGS.device)
 
     for MKN in MKNs:
         for num_threads in threads:
@@ -160,10 +138,9 @@ def main():
                 _MKN = [MKN[0] * bits, MKN[1], MKN[2]]
                 results.update(
                     profile_gemv_codegen(
-                        _MKN, bits, num_threads, target,
-                        remote_kwargs=remote_kwargs,
+                        _MKN, bits, num_threads,
                         dtype=dtype,
-                        **eval_kwargs,
+                        **device_kwargs,
                     )
                 )
                 logger.info(results)
@@ -177,7 +154,6 @@ def main():
                 header = False
 
                 gc.collect()
-                time.sleep(60)
 
 
 if __name__ == "__main__":

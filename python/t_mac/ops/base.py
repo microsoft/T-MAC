@@ -27,7 +27,8 @@ class OpCodegen:
             verify: bool = True,
             save_dir: str = "",
             target_host: Optional[str] = None,
-            remote_kwargs: Optional[dict] = None) -> None:
+            remote_kwargs: Optional[dict] = None,
+            cc_opts: Optional[list] = None) -> None:
         self.dtype = dtype
         self.name = name
         self.tune = tune
@@ -40,6 +41,7 @@ class OpCodegen:
         self.build_func = self.remote_kwargs.pop("build_func") if remote_kwargs is not None else None
         self.cc = os.environ.get("TVM_NDK_CC", None) if self.build_func == "ndk" else None
         self.cc_opts = ["-O3", "-march=armv8.2a+fp16"] if self.build_func == "ndk" else None
+        self.cc_opts = cc_opts
 
     def _schedule(self, tensors: List[te.Tensor]):
         raise NotImplementedError
