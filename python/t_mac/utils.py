@@ -36,13 +36,15 @@ def get_default_device_kwargs(device: str):
         }
     elif device == "intel_win":
         return {
-            "target": "llvm -mtriple=x86_64-pc-windows-msvc",
+            "target": "llvm -mtriple=x86_64-pc-windows-msvc -mcpu=skylake",
             "eval_kwargs": {
                 "number": 100,
                 "repeat": 10,
             },
             "remote_kwargs": None,
-            "cc_opts": ["-O3", "-march=native"],
+            # TODO: check if inline-threshold is needed for other devices
+            "cc_opts": ["-O3", "-march=native", "-mllvm", "-inline-threshold=10000"],
+            "out_dtype": "float32",
         }
     else:
         raise ValueError(f"Unknown device: {device}")

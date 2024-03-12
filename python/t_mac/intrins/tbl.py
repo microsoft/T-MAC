@@ -18,9 +18,8 @@ def tbl(
     cc_opts: Optional[list] = None,
     has_scale: bool = True,
     has_lut_scale: bool = False,
+    out_dtype: str = "float16",
 ) -> Tuple[tvm.tir.TensorIntrin, str]:
-
-    out_dtype = "float16"
 
     LUT = te.placeholder((kfactor, 2 ** g), dtype, name="LUT")
     A = te.placeholder((kfactor, m // ngroups_per_elem), "uint8", name="A")
@@ -129,7 +128,6 @@ def tbl(
         options=cc_opts,
         cc=cc,
     )
-    import pdb; pdb.set_trace()
 
     buffer_params = {"offset_factor": 1}
     binds = {LUT: lut_buffer, A: a_buffer, Scales: scales_buffer, C: c_buffer}

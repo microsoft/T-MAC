@@ -9,7 +9,8 @@ def preprocess_weights(
     g: int = 4,
     bm: int = 512,
     kfactor: int = 16,
-    simd_width: int = 128,
+    simd_n_in: int = 16,
+    simd_n_out: int = 8,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Offline preprocess the weights before inference.
 
@@ -41,8 +42,6 @@ def preprocess_weights(
     M, K = w.shape
     M = M * bits
     group_size = K // scales.shape[1]
-    simd_n_float16 = simd_width // 16
-    simd_n_uint8 = simd_width // 8
     ngroups_per_elem = 8 // g
 
     # (M // bits, K, bits)
@@ -54,18 +53,18 @@ def preprocess_weights(
     # for bits=3
     # bit0: [0, 8), bit1: [8, 16), bit2: [16, 24), bit0: [24, 32)
     # (M // bits // simd_n_float16, bits, simd_n_float16, K // g)
-    w = w.reshape(M // bits // simd_n_float16, simd_n_float16, bits, K // g).transpose(0, 2, 1, 3)
-    mgroup = ngroups_per_elem * simd_n_uint8
-    w = w.reshape(M // mgroup, ngroups_per_elem, simd_n_uint8, K // g).transpose(0, 2, 1, 3)
+    w = w.reshape(M // bits // simd_n_out, simd_n_out, bits, K // g).transpose(0, 2, 1, 3)
+    mgroup = ngroups_per_elem * simd_n_in
+    w = w.reshape(M // mgroup, ngroups_per_elem, simd_n_in, K // g).transpose(0, 2, 1, 3)
     #             0        1             2             3                 4                  5
-    w = w.reshape(M // bm, bm // mgroup, simd_n_uint8, ngroups_per_elem, K // g // kfactor, kfactor).transpose(0, 4, 1, 5, 2, 3)
+    w = w.reshape(M // bm, bm // mgroup, simd_n_in, ngroups_per_elem, K // g // kfactor, kfactor).transpose(0, 4, 1, 5, 2, 3)
     w = sum([(w[:, :, :, :, :, ng] << (ng * g)) for ng in range(ngroups_per_elem)])
-    w = w.reshape(M // bm, K // g // kfactor, bm // mgroup, kfactor, simd_n_uint8)
+    w = w.reshape(M // bm, K // g // kfactor, bm // mgroup, kfactor, simd_n_in)
     # input size of current TVM API
     w = w.reshape(M // bm, K // g, bm // ngroups_per_elem)
 
     scales = scales.reshape(M // bm, bm // bits, K // group_size).transpose(0, 2, 1)
-    scales = scales.reshape(M // bm, K // group_size, bm // bits // simd_n_float16, simd_n_float16)
+    scales = scales.reshape(M // bm, K // group_size, bm // bits // simd_n_out, simd_n_out)
     # input size of current TVM API
     scales = scales.reshape(M // bm, K // group_size, bm // bits)
 

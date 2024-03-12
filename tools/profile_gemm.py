@@ -22,6 +22,7 @@ def profile_gemv_codegen(
     dtype: str = "int8",
     cc_opts: Optional[list] = None,
     eval_kwargs: Optional[dict] = None,
+    out_dtype: str = "float16",
 ):
     M, K, N = MKN
     if target == "opencl" or target == "vulkan":
@@ -40,6 +41,7 @@ def profile_gemv_codegen(
         "remote_kwargs": remote_kwargs,
         "bits": bits,
         "cc_opts": cc_opts,
+        "out_dtype": out_dtype,
     }
 
     codegen_keys = [
@@ -107,8 +109,9 @@ def main():
     ]
 
     threads = [
-        1,
-        # 4,
+        # 1,
+        # 2,
+        4,
         # 8,
         # 16,
     ]
@@ -118,7 +121,7 @@ def main():
         # "float16",
     ]
     header = True
-    bits = 4
+    bits = 2
 
     device_kwargs = t_mac.utils.get_default_device_kwargs(FLAGS.device)
 
@@ -151,7 +154,6 @@ def main():
                 header = False
 
                 gc.collect()
-                time.sleep(60)
 
 
 if __name__ == "__main__":

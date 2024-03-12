@@ -11,10 +11,21 @@ import os
 
 class QGeMMLUTBitsCodegen(OpCodegen):
 
-    def __init__(self, *args, bits: int = 1, g: int = 4, group_size: int = 128, act_group_size: int = 64, **kwargs):
+    def __init__(
+        self,
+        *args,
+        bits: int = 1,
+        g: int = 4,
+        group_size: int = 128,
+        act_group_size: int = 64,
+        out_dtype: str = "float16",
+        simd_n_in: int = 16,
+        simd_n_out: int = 8,
+        **kwargs
+    ):
         super().__init__(*args, **kwargs)
 
-        self.out_dtype = "float16"
+        self.out_dtype = out_dtype
         self.has_lut_scale = (self.dtype != self.out_dtype)
         self.weight_dtype = "uint8"
         self._num_per_elem = 8
@@ -23,8 +34,12 @@ class QGeMMLUTBitsCodegen(OpCodegen):
         self.group_size = group_size
         self.act_group_size = act_group_size
         self.bits = bits
-        self.simd_width = 128
-        self.simd_n_out_dtype = self.simd_width // (np.dtype(self.out_dtype).itemsize * 8)
+        # NEON: 16 (= 128 / 8)
+        # AVX2: 16 (= 128 / 8)
+        self.simd_n_in = simd_n_in
+        # NEON: 8 (= 128 / 16)
+        # AVX2: 8 (= 256 / 32)
+        self.simd_n_out = simd_n_out
         # w = b0 + b1 * 2 + b2 * 4 + b3 * 8 - 8
         #   = 1 / 2 (b0' + gamma * s0) + b1' + b2' * 2 + b3' * 4, where s0 = -1
         self.alphas = [1 / 2, 1, 2, 4]
@@ -78,9 +93,9 @@ class QGeMMLUTBitsCodegen(OpCodegen):
             lambda n, m: sum([
                 CBits[
                     n,
-                    te.indexdiv(m, self.simd_n_out_dtype) * self.simd_n_out_dtype * self.bits
-                        + te.indexmod(m, self.simd_n_out_dtype)
-                        + b * self.simd_n_out_dtype
+                    te.indexdiv(m, self.simd_n_out) * self.simd_n_out * self.bits
+                        + te.indexmod(m, self.simd_n_out)
+                        + b * self.simd_n_out
                 ] * alphas[b]
                 for b in range(self.bits)
             ]),
@@ -123,6 +138,7 @@ class QGeMMLUTBitsCodegen(OpCodegen):
             cc_opts=self.cc_opts,
             has_scale=True,
             has_lut_scale=self.has_lut_scale,
+            out_dtype=self.out_dtype,
         )
         sch[CBits].tensorize(kiC, intrin)
         sch[CBits].pragma(koC, "import_llvm", ll_code)
@@ -135,14 +151,12 @@ class QGeMMLUTBitsCodegen(OpCodegen):
         tvm.testing.assert_allclose(tvm_arrays[-1].numpy(), arrays[-1], atol=1e-2, rtol=1e-2)
 
     def _reference(self, M: int, N: int, K: int):
-        simd_n_uint8 = self.simd_width // 8
-        a = np.random.randn(M // self.bm, K // self.g // self.kfactor, self.bm // self._ngroups_per_elem // simd_n_uint8, self.kfactor, simd_n_uint8).astype(self.weight_dtype)
+        a = np.random.randn(M // self.bm, K // self.g // self.kfactor, self.bm // self._ngroups_per_elem // self.simd_n_in, self.kfactor, self.simd_n_in).astype(self.weight_dtype)
         a_t = a.reshape(M // self.bm, K // self.g, self.bm // self._ngroups_per_elem)
 
         lut = np.random.randn(N, K // self.g, 2 ** self.g).astype(self.dtype)
 
-        simd_n_float16 = self.simd_width // 16
-        scales = np.random.randn(M // self.bm, K // self.group_size, self.bm // self.bits // simd_n_float16, simd_n_float16).astype(self.out_dtype)
+        scales = np.random.randn(M // self.bm, K // self.group_size, self.bm // self.bits // self.simd_n_out, self.simd_n_out).astype(self.out_dtype)
         scales_t = scales.reshape(M // self.bm, K // self.group_size, self.bm // self.bits)
 
         if self.has_lut_scale:
@@ -157,19 +171,19 @@ class QGeMMLUTBitsCodegen(OpCodegen):
                 for m in range(M):
                     mo = m // self.bm
                     ko = k // self.kfactor
-                    mi = (m % self.bm) // self._ngroups_per_elem // simd_n_uint8
+                    mi = (m % self.bm) // self._ngroups_per_elem // self.simd_n_in
                     ki = k % self.kfactor
-                    e = (m % self.bm) % (self._ngroups_per_elem * simd_n_uint8)
+                    e = (m % self.bm) % (self._ngroups_per_elem * self.simd_n_in)
                     a_e = a[mo, ko, mi, ki, e]
 
-                    scales_mi = (m % self.bm) // self.bits // simd_n_float16
-                    scales_e = ((m % self.bm) % simd_n_float16)
+                    scales_mi = (m % self.bm) // self.bits // self.simd_n_out
+                    scales_e = ((m % self.bm) % self.simd_n_out)
                     cbits[n, m] += lut[n, k, a_e] * lut_scales[n, k * self.g // self.act_group_size] * scales[mo, k * self.g // self.group_size, scales_mi, scales_e]
-                    if (((k * self.g) % self.act_group_size) == 0) and ((((m % self.bm) // simd_n_float16) % self.bits) == 0):
+                    if (((k * self.g) % self.act_group_size) == 0) and ((((m % self.bm) // self.simd_n_out) % self.bits) == 0):
                         cbits[n, m] += lut_biases[n, k * self.g // self.act_group_size] * scales[mo, k * self.g // self.group_size, scales_mi, scales_e]
 
         c = (
-            cbits.reshape((N, M // simd_n_float16 // self.bits, self.bits, simd_n_float16))
+            cbits.reshape((N, M // self.simd_n_out // self.bits, self.bits, self.simd_n_out))
                 .transpose(0, 1, 3, 2)
                 .dot(np.array(self.alphas[:self.bits], dtype=self.out_dtype))
                 .reshape((N, M // self.bits))

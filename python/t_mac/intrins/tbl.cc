@@ -9,7 +9,7 @@
 #include "types.h"
 
 template <bool has_scale, int K, int Bits>
-int32_t tbl_g4_float_float_update_impl(int32_t m, float_type* c, float_type* lut, uint8_t* a, float_type* scales) {
+inline int32_t tbl_g4_float_float_update_impl(int32_t m, float_type* c, float_type* lut, uint8_t* a, float_type* scales) {
 #ifdef __ARM_NEON
     const uint8x16_t vec_mask = vdupq_n_u8(0x0f);
     uint8x16x2_t vec_lut[K];
@@ -271,7 +271,7 @@ struct SignedWideningAdder {
 #endif
 
 template <bool has_scale, int K, int Bits, int ActK = 16, typename Adder = SignedHalvingAdder<ActK>>
-int32_t tbl_g4_int8_float_update_impl(int32_t m, float_type* c, int8_t* lut, uint8_t* a, float_type* scales, float_type* lut_scales, float_type* lut_biases) {
+inline int32_t tbl_g4_int8_float_update_impl(int32_t m, float_type* c, int8_t* lut, uint8_t* a, float_type* scales, float_type* lut_scales, float_type* lut_biases) {
 #ifdef __ARM_NEON
     const uint8x16_t vec_mask = vdupq_n_u8(0x0f);
     int8x16_t vec_lut[K];
@@ -396,7 +396,7 @@ int32_t tbl_g4_int8_float_update_impl(int32_t m, float_type* c, int8_t* lut, uin
 
 // Unified scale
 template <int K, int Bits, typename Adder = SignedHalvingAdder<K>>
-int32_t tbl_g4_int8_int16_update_impl(int32_t m, int16_t* c, int8_t* lut, uint8_t* a) {
+inline int32_t tbl_g4_int8_int16_update_impl(int32_t m, int16_t* c, int8_t* lut, uint8_t* a) {
 #ifdef __ARM_NEON
 #elif defined __AVX2__
     const __m128i vec_mask = _mm_set1_epi8(0x0f);
@@ -443,6 +443,9 @@ int32_t tbl_g4_int8_int16_update_impl(int32_t m, int16_t* c, int8_t* lut, uint8_
     }                                                                                                                                                                          \
     int32_t tbl_g4_int8_float_update_##s##_##k##_##b(int32_t m, float_type* c, int8_t* lut, uint8_t* a, float_type* scales, float_type* lut_scales, float_type* lut_biases) {  \
         return tbl_g4_int8_float_update_impl<s, k, b>(m, c, lut, a, scales, lut_scales, lut_biases);                                                                           \
+    }                                                                                                                                                                          \
+    int32_t tbl_g4_int8_int16_update_##s##_##k##_##b(int32_t m, float_type* c, int8_t* lut, uint8_t* a, float_type* scales, float_type* lut_scales, float_type* lut_biases) {  \
+        return tbl_g4_int8_int16_update_impl<k, b>(m, reinterpret_cast<int16_t*>(c), lut, a);                                                                                  \
     }
 
 #ifdef __cplusplus
