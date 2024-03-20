@@ -12,10 +12,9 @@ def lut_ctor(
     dtype: str,
     cc: Optional[str] = None,
     cc_opts: Optional[list] = None,
+    out_dtype = "float16",
 ) -> Tuple[tvm.tir.TensorIntrin, str]:
     
-    out_dtype = "float16"
-
     B = te.placeholder((k,), out_dtype, name="B")
     LUT_Scales = te.placeholder((k // act_group_size,), out_dtype, name="LUT_Scales")
     LUT_Biases = te.placeholder((k // act_group_size,), out_dtype, name="LUT_Biases")
@@ -60,6 +59,7 @@ def lut_ctor(
 
     temp = utils.tempdir()
     ll_path = temp.relpath("lut_ctor.ll")
+    cc_opts = (cc_opts or []) + ["-I" + os.path.dirname(__file__)]
     ll_code = clang.create_llvm(
         cc_code,
         output=ll_path,

@@ -36,7 +36,7 @@ def get_default_device_kwargs(device: str):
         }
     elif device == "intel_win":
         return {
-            "target": "llvm -mtriple=x86_64-pc-windows-msvc -mcpu=skylake",
+            "target": "llvm -mtriple=x86_64-pc-windows-msvc -mcpu=core-avx2",
             "eval_kwargs": {
                 "number": 100,
                 "repeat": 10,

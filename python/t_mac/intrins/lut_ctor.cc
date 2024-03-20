@@ -1,5 +1,11 @@
-#include <arm_neon.h>
 #include <algorithm>
+#ifdef __ARM_NEON
+#include <arm_neon.h>
+#elif defined __AVX2__
+#include <immintrin.h>
+#endif
+
+#include "types.h"
 
 
 #define vaddvq_f16(v) \
@@ -22,7 +28,8 @@ struct mylog2<1> {
 // Current implementation requires (K * 4) == act_group_size and K >= 8
 // s0 = -1, s1 = 1
 template <int K, bool FastAggregation = true>
-int32_t lut_ctor_g4_int8_impl(int8_t* qlut, float16_t* b, float16_t* lut_scales, float16_t* lut_biases) {
+int32_t lut_ctor_g4_int8_impl(int8_t* qlut, float_type* b, float_type* lut_scales, float_type* lut_biases) {
+#ifdef __ARM_NEON
     float16x8_t vec_lut[K / 8][16];
     float16_t scales = 0.0;
     float16_t biases = 0.0;
@@ -123,13 +130,16 @@ int32_t lut_ctor_g4_int8_impl(int8_t* qlut, float16_t* b, float16_t* lut_scales,
 
     *lut_scales = scales;
     *lut_biases = biases;
+#elif defined __AVX2__
+#endif
+
     return 0;
 }
 
 // TODO: Add API to toggle FastAggregation
-#define lut_ctor(k)                                                                                           \
-    int32_t lut_ctor_g4_int8_##k(int8_t* qlut, float16_t* b, float16_t* lut_scales, float16_t* lut_biases) {  \
-        return lut_ctor_g4_int8_impl<k>(qlut, b, lut_scales, lut_biases);                                     \
+#define lut_ctor(k)                                                                                              \
+    int32_t lut_ctor_g4_int8_##k(int8_t* qlut, float_type* b, float_type* lut_scales, float_type* lut_biases) {  \
+        return lut_ctor_g4_int8_impl<k>(qlut, b, lut_scales, lut_biases);                                        \
     }
 
 #ifdef __cplusplus
