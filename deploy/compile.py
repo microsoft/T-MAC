@@ -61,6 +61,8 @@ def compile(
     preprocessor = QGeMMLUTBitsPreprocessorCodegen(name="preprocessor", **codegen_kwargs)
     for M, K, N in MKNs:
         M = M * bits
+        if FLAGS.one_thread_block:
+            M = M // FLAGS.num_threads
 
         template_name = f"qgemm_lut_{M}_{K}_{N}_{FLAGS.num_threads}_{dtype}_{bits}"
         mod = insert(mod, qgemm_lut.compile(
@@ -100,6 +102,8 @@ def parse_args():
     parser.add_argument("-t", "--tune", action="store_true")
     parser.add_argument("-r", "--reuse_tuned", action="store_true")
     parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument("-b", "--bits", type=int, default=2)
+    parser.add_argument("-tb", "--one_thread_block", action="store_true")
 
     parser.add_argument("-nt", "--num_threads", type=int, default=16)  # 16 big cores for M2-ultra
     parser.add_argument("-ta", "--thread_affinity", type=int, default=1)

@@ -430,10 +430,10 @@ inline int32_t tbl_g4_int8_int32_update_impl(int32_t m, int32_t* c, int8_t* lut,
         __m256i vec_c1 = _mm256_loadu_si256(reinterpret_cast<__m256i*>(c + i * 2 + 8));
         __m256i vec_c2 = _mm256_loadu_si256(reinterpret_cast<__m256i*>(c + i * 2 + 16));
         __m256i vec_c3 = _mm256_loadu_si256(reinterpret_cast<__m256i*>(c + i * 2 + 24));
-        vec_c0 = _mm256_add_epi16(vec_c0, vec_v_low_low);
-        vec_c1 = _mm256_add_epi16(vec_c1, vec_v_low_high);
-        vec_c2 = _mm256_add_epi16(vec_c2, vec_v_high_low);
-        vec_c3 = _mm256_add_epi16(vec_c3, vec_v_high_high);
+        vec_c0 = _mm256_add_epi32(vec_c0, vec_v_low_low);
+        vec_c1 = _mm256_add_epi32(vec_c1, vec_v_low_high);
+        vec_c2 = _mm256_add_epi32(vec_c2, vec_v_high_low);
+        vec_c3 = _mm256_add_epi32(vec_c3, vec_v_high_high);
         _mm256_storeu_si256(reinterpret_cast<__m256i*>(c + i * 2     ), vec_c0);
         _mm256_storeu_si256(reinterpret_cast<__m256i*>(c + i * 2 + 8 ), vec_c1);
         _mm256_storeu_si256(reinterpret_cast<__m256i*>(c + i * 2 + 16), vec_c2);

@@ -9,10 +9,12 @@ def lut_ctor(
     k: int,
     g: int,
     act_group_size: int,
+    bits: int,
     dtype: str,
     cc: Optional[str] = None,
     cc_opts: Optional[list] = None,
     out_dtype = "float16",
+    fast_aggregation_k: int = 16,
 ) -> Tuple[tvm.tir.TensorIntrin, str]:
     
     B = te.placeholder((k,), out_dtype, name="B")
@@ -45,7 +47,8 @@ def lut_ctor(
         ib.emit(
             tvm.tir.call_extern(
                 "int32",
-                f"lut_ctor_g4_{dtype}_{k // g}",
+                f"lut_ctor_g4_{dtype}_k{fast_aggregation_k}_b{bits}",
+                k,
                 qlut_buffer.access_ptr("w"),
                 b_buffer.access_ptr("r"),
                 lut_scales_buffer.access_ptr("w"),
@@ -72,6 +75,92 @@ def lut_ctor(
     return (
         te.decl_tensor_intrin(
             QLUT.op,
+            _intrin_func,
+            binds=binds,
+            default_buffer_params=buffer_params,
+        ),
+        ll_code
+    )
+
+
+def partial_max(
+    g: int,
+    dtype: str,
+    k: int = 32,
+    cc: Optional[str] = None,
+    cc_opts: Optional[list] = None,
+    out_dtype = "float16",
+) -> Tuple[tvm.tir.TensorIntrin, str]:
+    
+    if dtype == "int8":
+        maxv = 127
+    
+    B = te.placeholder((k,), out_dtype, name="B")
+    sk = te.reduce_axis((0, k // g), "k")
+
+    LUT_Scales = te.compute(
+        (1,),
+        lambda _: te.max(
+            te.abs(sum(B[sk * g + ig] for ig in range(g))) / maxv,
+            axis=sk,
+        ),
+        name="LUT_Scales",
+    )
+
+    b_buffer = tvm.tir.decl_buffer(
+        B.shape, B.dtype, name="b_buffer", offset_factor=1, strides=[1]
+    )
+    lut_scales_buffer = tvm.tir.decl_buffer(
+        LUT_Scales.shape, LUT_Scales.dtype, name="lut_scales", offset_factor=1, strides=[1]
+    )
+
+    def _intrin_func(ins, outs):
+        def _body():
+            ib = tvm.tir.ir_builder.create()
+            ib.emit(
+                tvm.tir.call_extern(
+                    "int32",
+                    f"partial_max_{dtype}_k{k // g}",
+                    lut_scales_buffer.access_ptr("w"),
+                    b_buffer.access_ptr("r"),
+                )
+            )
+            return ib.get()
+
+        def _reduce_reset():
+            ib = tvm.tir.ir_builder.create()
+            ib.emit(
+                tvm.tir.call_extern(
+                    "int32",
+                    f"partial_max_reset",
+                    lut_scales_buffer.access_ptr("w"),
+                )
+            )
+            return ib.get()
+
+        def _reduce_update():
+            return _body()
+
+        return _body(), _reduce_reset(), _reduce_update()
+
+    with open(os.path.join(os.path.dirname(__file__), "lut_ctor.cc"), "r") as fp:
+        cc_code = fp.read()
+
+    temp = utils.tempdir()
+    ll_path = temp.relpath("lut_ctor.ll")
+    cc_opts = (cc_opts or []) + ["-I" + os.path.dirname(__file__)]
+    ll_code = clang.create_llvm(
+        cc_code,
+        output=ll_path,
+        options=cc_opts,
+        cc=cc,
+    )
+
+    buffer_params = {"offset_factor": 1}
+    binds = {LUT_Scales: lut_scales_buffer, B: b_buffer}
+    return (
+        te.decl_tensor_intrin(
+            LUT_Scales.op,
             _intrin_func,
             binds=binds,
             default_buffer_params=buffer_params,

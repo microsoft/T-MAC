@@ -3,7 +3,7 @@ from tvm import te
 import tvm
 import tvm.testing
 import numpy as np
-from ..intrins import tbl, lut_ctor
+from ..intrins import tbl, lut_ctor, partial_max
 
 from typing import List
 import os
@@ -21,6 +21,7 @@ class QGeMMLUTBitsCodegen(OpCodegen):
         out_dtype: str = "float16",
         simd_n_in: int = 16,
         simd_n_out: int = 8,
+        m_group_size: int = 1,
         **kwargs
     ):
         super().__init__(*args, **kwargs)
@@ -44,7 +45,17 @@ class QGeMMLUTBitsCodegen(OpCodegen):
         # w = b0 + b1 * 2 + b2 * 4 + b3 * 8 - 8
         #   = 1 / 2 (b0' + gamma * s0) + b1' + b2' * 2 + b3' * 4, where s0 = -1
         self.alphas = [1 / 2, 1, 2, 4]
-        self.kfactors = [k for k in [8, 16] if k * 4 >= self.act_group_size]
+        # Current implementation decides do_scale_final only by m_group_size
+        # Consider fine-grained lut_scale for m_group_size > 1?
+        if m_group_size == 1:
+            # GPTQ-like scales
+            self.kfactors = [k for k in [8, 16] if k * 4 >= self.act_group_size]
+            self.do_scale_final = False
+        else:
+            # BitNet, unified scale
+            self.kfactors = [8, 16]
+            self.do_scale_final = True
+        self.m_group_size = m_group_size
 
     def _define_config(self, cfg):
         cfg.define_knob("bm", [256, 128, 512, 1024])
@@ -59,7 +70,28 @@ class QGeMMLUTBitsCodegen(OpCodegen):
 
         A = te.placeholder((M // bm, K // self.g, bm // self._ngroups_per_elem), dtype=self.weight_dtype, name="A")
         LUT = te.placeholder((N, K // self.g, 2 ** self.g), dtype=self.dtype, name="LUT")
-        Scales = te.placeholder((M // bm, K // self.group_size, bm // self.bits), dtype=self.out_dtype, name="Scales")
+
+        if self.m_group_size == 1:
+            scales_shape = (M // bm, K // self.group_size, bm // self.bits)
+        else:
+            scales_shape = (M // self.bits // self.m_group_size,)
+            # Currently we enforce unified scale for activation as well
+            # to do fast scale multiplication (do_scale_final = True)
+            assert self.act_group_size == K
+        
+        if not self.do_scale_final:
+            def _get_scale(scale_tensor, m, k):
+                return scale_tensor[m // bm, k * self.g // self.group_size, (m % bm) // self.bits]
+            def _madd_scale_bias(cbits_sum, scale_tensor, lut_scale_tensor, lut_bias_tensor, n, m):
+                return cbits_sum
+        else:
+            def _get_scale(scale_tensor, m, k):
+                return 1
+            def _madd_scale_bias(cbits_sum, scale_tensor, lut_scale_tensor, lut_bias_tensor, n, m):
+                return (cbits_sum.astype(self.out_dtype) * lut_scale_tensor[n, 0] + lut_bias_tensor[n, 0] * self.alphas[0]) * scale_tensor[m // self.m_group_size]
+
+
+        Scales = te.placeholder(scales_shape, dtype=self.out_dtype, name="Scales")
 
         if self.has_lut_scale:
             LUT_Scales = te.placeholder((N, K // self.act_group_size), dtype=self.out_dtype, name="LUT_Scales")
@@ -76,11 +108,11 @@ class QGeMMLUTBitsCodegen(OpCodegen):
             (N, M),
             lambda n, m: te.sum(
                 LUT[n, k, _get_Abits(m, k)].astype(self.out_dtype) * (
-                    Scales[m // bm, k * self.g // self.group_size, (m % bm) // self.bits]
+                    _get_scale(Scales, m, k)
                         * LUT_Scales[n, k * self.g // self.act_group_size]
                         + LUT_Biases[n, k * self.g // self.act_group_size]
                     if self.has_lut_scale
-                    else Scales[m // bm, k * self.g // self.group_size, (m % bm) // self.bits]
+                    else _get_scale(Scales, m, k)
                 ),
                 axis=k,
             ),
@@ -91,15 +123,18 @@ class QGeMMLUTBitsCodegen(OpCodegen):
 
         C = te.compute(
             (N, M // self.bits),
-            lambda n, m: sum([
-                CBits[
-                    n,
-                    te.indexdiv(m, self.simd_n_out) * self.simd_n_out * self.bits
-                        + te.indexmod(m, self.simd_n_out)
-                        + b * self.simd_n_out
-                ] * alphas[b]
-                for b in range(self.bits)
-            ]),
+            lambda n, m: _madd_scale_bias(
+                sum([
+                    CBits[
+                        n,
+                        te.indexdiv(m, self.simd_n_out) * self.simd_n_out * self.bits
+                            + te.indexmod(m, self.simd_n_out)
+                            + b * self.simd_n_out
+                    ] * alphas[b]
+                    for b in range(self.bits)
+                ]),
+                Scales, LUT_Scales, LUT_Biases, n, m,
+            ),
             name="C",
         )
 
@@ -312,7 +347,16 @@ class QGeMMLUTBitsPreprocessorCodegen_(OpCodegen):
     This preprocessor will compute the LUT of the activations,
     and quantize the LUT from `out_dtype` to `dtype`.
     """
-    def __init__(self, *args, g: int = 4, act_group_size: int = 64, out_dtype: str = "float16", **kwargs):
+    def __init__(
+        self,
+        *args,
+        g: int = 4,
+        act_group_size: int = 64,
+        out_dtype: str = "float16",
+        bits: int = 4,
+        fast_aggregation_k: int = 16,
+        **kwargs
+    ):
         super().__init__(*args, **kwargs)
 
         self.out_dtype = out_dtype
@@ -320,6 +364,7 @@ class QGeMMLUTBitsPreprocessorCodegen_(OpCodegen):
             self.maxv = (1 << 7) - 1
         self.g = g
         self.act_group_size = act_group_size
+        self.bits = bits
         # Weights mapped from s=[0, 1] to s'=[-1, 1]
         # s' = s * 2 - 1
         # s = (s' + 1) / 2
@@ -327,6 +372,7 @@ class QGeMMLUTBitsPreprocessorCodegen_(OpCodegen):
         # w = b0 + b1 * 2 + b2 * 4 + b3 * 8 - 8
         #   = 1 / 2 (b0' + gamma * s0) + b1' + b2' * 2 + b3' * 4, where s0 = -1
         self._gamma = 1
+        self.fast_aggregation_k = fast_aggregation_k
 
     def _define_config(self, cfg):
         self.kfactor = self.act_group_size // self.g
@@ -335,22 +381,16 @@ class QGeMMLUTBitsPreprocessorCodegen_(OpCodegen):
     def _compute(self, N: int, K: int):
         B = te.placeholder((N, K), dtype=self.out_dtype, name="B")
 
-        k = te.reduce_axis((0, K // self.g), "k")
-
-        packedB = te.compute(
-            (N, self.g, K // self.g),
-            lambda n, g, k: B[n, k * self.g + g],
-            name="packedB",
-        )
-
+        sk = te.reduce_axis((0, self.act_group_size // self.g), "k")
         LUT_Scales = te.compute(
             (N, K // self.act_group_size),
             lambda n, kk: te.max(
-                sum(te.abs(packedB[n, g, kk * self.act_group_size // self.g + k]) for g in range(self.g)),
-                axis=k,
+                te.abs(sum(B[n, kk * self.act_group_size + sk * self.g + g] for g in range(self.g))) / self.maxv,
+                axis=sk,
             ),
             name="LUT_Scales",
         )
+
         LUT_Biases = te.placeholder((N, K // self.act_group_size), dtype=self.out_dtype, name="LUT_Biases")
 
         # placeholder computation
@@ -369,16 +409,33 @@ class QGeMMLUTBitsPreprocessorCodegen_(OpCodegen):
         _, LUT_Scales, LUT_Biases, QLUT = tensors
         sch: te.Schedule = te.create_schedule([QLUT.op])
 
+        sk = sch[LUT_Scales].op.reduce_axis[0]
+        sn, skk = sch[LUT_Scales].op.axis
+        skko, skki = sch[LUT_Scales].split(skk, factor=1)
+        sko, ski = sch[LUT_Scales].split(sk, factor=8)
+        sch[LUT_Scales].reorder(sn, skko, sko, skki, ski)
+        intrin, ll_code = partial_max(
+            self.g,
+            self.dtype,
+            cc=self.cc,
+            cc_opts=self.cc_opts,
+            out_dtype=self.out_dtype,
+        )
+        sch[LUT_Scales].tensorize(skki, intrin)
+        sch[LUT_Scales].pragma(sko, "import_llvm", ll_code)
+
         n, k, g = sch[QLUT].op.axis
         ko, ki = sch[QLUT].split(k, factor=self.kfactor)
         intrin, ll_code = lut_ctor(
             self.kfactor * 4,
             self.g,
             self.act_group_size,
+            self.bits,
             self.dtype,
             cc=self.cc,
             cc_opts=self.cc_opts,
             out_dtype=self.out_dtype,
+            fast_aggregation_k=self.fast_aggregation_k,
         )
         sch[QLUT].tensorize(ki, intrin)
         sch[QLUT].pragma(ko, "import_llvm", ll_code)
