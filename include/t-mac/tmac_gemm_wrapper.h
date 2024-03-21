@@ -10,10 +10,25 @@
 #include <cstdio>
 #include <map>
 #include <tuple>
+#include <mutex>
 
 namespace TMAC {
 
-static constexpr size_t kAllocAlignment = 64;
+constexpr size_t kAllocAlignment = 64;
+constexpr DLDevice dev = {
+  .device_type = kDLCPU,
+  .device_id = 0,
+};
+constexpr DLDataType int_dtype = {
+  .code = kDLInt,
+  .bits = 8,
+  .lanes = 1,
+};
+constexpr DLDataType float_dtype = {
+  .code = kDLFloat,
+  .bits = sizeof(T) * 8,
+  .lanes = 1,
+};
 
 template <typename T, int g = 4>
 class TMACGeMMWrapper {
@@ -22,7 +37,8 @@ public:
       : _n_threads(n_threads),
         _act_group_size(act_group_size),
         _mod_syslib((*tvm::runtime::Registry::Get("runtime.SystemLib"))()),
-        _config_threadpool(tvm::runtime::Registry::Get("runtime.config_threadpool"))
+        _config_threadpool(tvm::runtime::Registry::Get("runtime.config_threadpool")),
+        _allocated(false)
   {
     (*_config_threadpool)(1, _n_threads);
     int num_threads = (*tvm::runtime::Registry::Get("runtime.NumThreads"))();
@@ -31,22 +47,10 @@ public:
 
   void run(DLTensor* A, DLTensor* scales, DLTensor* B, DLTensor* C, int M, int K, int N, int bits)
   {
+    assert(_allocated);
+
     int64_t qlut_shape[3] = {N, K / g, (1 << g)};
     int64_t luts_shape[3] = {N, K / _act_group_size};
-    constexpr DLDevice dev = {
-      .device_type = kDLCPU,
-      .device_id = 0,
-    };
-    constexpr DLDataType int_dtype = {
-      .code = kDLInt,
-      .bits = 8,
-      .lanes = 1,
-    };
-    constexpr DLDataType float_dtype = {
-      .code = kDLFloat,
-      .bits = sizeof(T) * 8,
-      .lanes = 1,
-    };
 
     DLTensor QLUTt = {
       .data = _qlut,
@@ -80,11 +84,67 @@ public:
     qf(A, &QLUTt, scales, &LUTSt, &LUTBt, C);
   }
 
+  // Activation (B): NxK
+  // Parallelism is disabled for preprocessor
+  // Should only be called in main thread
+  void llama_cpp_init(void* B, int K, int N)
+  {
+    assert(_allocated);
+
+    DLTensor Bt = {
+      .data = B,
+    };
+    DLTensor QLUTt = {
+      .data = _qlut,
+    };
+    DLTensor LUTSt = {
+      .data = _lut_scales,
+    };
+    DLTensor LUTBt = {
+      .data = _lut_biases,
+    };
+
+    tvm::runtime::PackedFunc pf = get_function({0, K, N, 0});
+    pf(B, &LUTSt, &LUTBt, &QLUTt);
+  }
+
+  // Activation (B): NxK, Weights (A): MxK
+  // This is the task of only one thread for GeMM: N x K x (M x num_threads)
+  // Please split the blocks in llama.cpp and pass the right ptr for scales, A and C
+  void llama_cpp_compute(void* A, void* scales, void* C, int M, int K, int N, int bits)
+  {
+    assert(_allocated);
+
+    DLTensor At = {
+      .data = A,
+    };
+    DLTensor St = {
+      .data = scales,
+    };
+    DLTensor Ct = {
+      .data = C,
+    };
+    DLTensor QLUTt = {
+      .data = _qlut,
+    };
+    DLTensor LUTSt = {
+      .data = _lut_scales,
+    };
+    DLTensor LUTBt = {
+      .data = _lut_biases,
+    };
+
+    tvm::runtime::PackedFunc qf = get_function({M, K, N, bits});
+    qf(&At, &QLUTt, &St, &LUTSt, &LUTBt, &Ct);
+  }
+
+  // Should only be called in main thread
   void set_workspace(int maxK, int maxN)
   {
     posix_memalign(&_qlut, kAllocAlignment, maxN * maxK / g * (1 << g) * sizeof(int8_t));
     posix_memalign(&_lut_scales, kAllocAlignment, maxN * maxK / _act_group_size * sizeof(T));
     posix_memalign(&_lut_biases, kAllocAlignment, maxN * maxK / _act_group_size * sizeof(T));
+    _allocated = true;
   }
 
   ~TMACGeMMWrapper()
@@ -98,6 +158,7 @@ public:
 
   tvm::runtime::PackedFunc get_function(_fkey key)
   {
+    std::lock_guard<std::mutex> lock(_m);
     auto iter = _fcache.find(key);
     tvm::runtime::PackedFunc f;
     if (iter == _fcache.end()) {
@@ -139,6 +200,9 @@ private:
   void* _qlut;
   void* _lut_scales;
   void* _lut_biases;
+
+  bool _allocated;
+  std::mutex _m;
 };
 
 } // namespace TMAC
