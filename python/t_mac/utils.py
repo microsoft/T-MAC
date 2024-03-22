@@ -48,3 +48,8 @@ def get_default_device_kwargs(device: str):
         }
     else:
         raise ValueError(f"Unknown device: {device}")
+
+
+def get_bits_alphas(bits: int):
+    alphas = [1 / 2, 1, 2, 4]
+    return alphas[:bits]

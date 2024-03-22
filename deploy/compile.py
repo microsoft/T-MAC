@@ -86,12 +86,13 @@ def compile(
             **eval_kwargs,
         ))
 
-    with tvm.target.Target(target, host=target_host):
-        syslib = tvm.build(
-            mod,
-            runtime=relay.backend.Runtime("cpp", {"system-lib": True}),
-        )
-        syslib.save(os.path.join(FLAGS.out_path, f"kernels.o"))
+    with tvm.transform.PassContext(config={"tir.disable_assert": FLAGS.disable_assert}):
+        with tvm.target.Target(target, host=target_host):
+            syslib = tvm.build(
+                mod,
+                runtime=relay.backend.Runtime("cpp", {"system-lib": True}),
+            )
+            syslib.save(os.path.join(FLAGS.out_path, f"kernels.o"))
 
 
 def parse_args():
@@ -104,6 +105,7 @@ def parse_args():
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("-b", "--bits", type=int, default=2)
     parser.add_argument("-tb", "--one_thread_block", action="store_true")
+    parser.add_argument("-da", "--disable_assert", action="store_true")
 
     parser.add_argument("-nt", "--num_threads", type=int, default=16)  # 16 big cores for M2-ultra
     parser.add_argument("-ta", "--thread_affinity", type=int, default=1)

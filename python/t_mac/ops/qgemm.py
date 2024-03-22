@@ -4,6 +4,7 @@ import tvm
 import tvm.testing
 import numpy as np
 from ..intrins import tbl, lut_ctor, partial_max
+from ..utils import get_bits_alphas
 
 from typing import List
 import os
@@ -21,9 +22,39 @@ class QGeMMLUTBitsCodegen(OpCodegen):
         out_dtype: str = "float16",
         simd_n_in: int = 16,
         simd_n_out: int = 8,
-        m_group_size: int = 1,
+        m_groups: int = -1,
+        aggregation_dtype: str = "int32",
         **kwargs
     ):
+        """
+        Parameters
+        ----------
+        bits : int
+            Number of bits for each group.
+        g : int
+            Group size of LUT.
+        group_size : int
+            Group size of weights.
+        act_group_size : int
+            Group size of activations.
+        out_dtype : str
+            Output data type.
+        simd_n_in : int
+            Number of SIMD lanes for input.
+            NEON-ui8: 16 (= 128 / 8)
+            AVX2-ui8: 16 (= 128 / 8)
+        simd_n_out : int
+            Number of SIMD lanes for output.
+            NEON-f16: 8 (= 128 / 16)
+            AVX2-f32: 8 (= 256 / 32)
+            AVX2-i32: 8 (= 256 / 32)
+        m_groups : int
+            Number of groups for M. group_size is invalid if m_groups != -1.
+            - -1 for GPTQ-like fine-grained scales
+            - 1/2/3 for BitNet-like unified scales
+        aggregation_dtype : str
+            Data type for aggregation.
+        """
         super().__init__(*args, **kwargs)
 
         self.out_dtype = out_dtype
@@ -35,27 +66,23 @@ class QGeMMLUTBitsCodegen(OpCodegen):
         self.group_size = group_size
         self.act_group_size = act_group_size
         self.bits = bits
-        # NEON-ui8: 16 (= 128 / 8)
-        # AVX2-ui8: 16 (= 128 / 8)
         self.simd_n_in = simd_n_in
-        # NEON-f16: 8 (= 128 / 16)
-        # AVX2-f32: 8 (= 256 / 32)
-        # AVX2-i32: 8 (= 256 / 32)
         self.simd_n_out = simd_n_out
         # w = b0 + b1 * 2 + b2 * 4 + b3 * 8 - 8
         #   = 1 / 2 (b0' + gamma * s0) + b1' + b2' * 2 + b3' * 4, where s0 = -1
-        self.alphas = [1 / 2, 1, 2, 4]
+        self.alphas = get_bits_alphas(bits)
         # Current implementation decides do_scale_final only by m_group_size
-        # Consider fine-grained lut_scale for m_group_size > 1?
-        if m_group_size == 1:
-            # GPTQ-like scales
-            self.kfactors = [k for k in [8, 16] if k * 4 >= self.act_group_size]
+        # Consider fine-grained lut_scale for m_groups == -1?
+        if m_groups == -1:
             self.do_scale_final = False
         else:
-            # BitNet, unified scale
-            self.kfactors = [8, 16]
             self.do_scale_final = True
-        self.m_group_size = m_group_size
+        if not self.do_scale_final:
+            self.kfactors = [k for k in [8, 16] if k * 4 >= self.act_group_size]
+        else:
+            self.kfactors = [8, 16]
+        self.m_groups = m_groups
+        self.aggregation_dtype = aggregation_dtype
 
     def _define_config(self, cfg):
         cfg.define_knob("bm", [256, 128, 512, 1024])
@@ -71,31 +98,42 @@ class QGeMMLUTBitsCodegen(OpCodegen):
         A = te.placeholder((M // bm, K // self.g, bm // self._ngroups_per_elem), dtype=self.weight_dtype, name="A")
         LUT = te.placeholder((N, K // self.g, 2 ** self.g), dtype=self.dtype, name="LUT")
 
-        if self.m_group_size == 1:
+        if self.m_groups == -1:
             scales_shape = (M // bm, K // self.group_size, bm // self.bits)
+            def _get_scale(m, k):
+                return Scales[m // bm, k * self.g // self.group_size, (m % bm) // self.bits]
         else:
-            scales_shape = (M // self.bits // self.m_group_size,)
             # Currently we enforce unified scale for activation as well
             # to do fast scale multiplication (do_scale_final = True)
             assert self.act_group_size == K
+            m_group_size = M // self.bits // self.m_groups
+            scales_shape = (self.m_groups,)
+            def _get_scale(m, k):
+                return Scales[m // m_group_size]
         
-        if not self.do_scale_final:
-            def _get_scale(scale_tensor, m, k):
-                return scale_tensor[m // bm, k * self.g // self.group_size, (m % bm) // self.bits]
-            def _madd_scale_bias(cbits_sum, scale_tensor, lut_scale_tensor, lut_bias_tensor, n, m):
-                return cbits_sum
-        else:
-            def _get_scale(scale_tensor, m, k):
-                return 1
-            def _madd_scale_bias(cbits_sum, scale_tensor, lut_scale_tensor, lut_bias_tensor, n, m):
-                return (cbits_sum.astype(self.out_dtype) * lut_scale_tensor[n, 0] + lut_bias_tensor[n, 0] * self.alphas[0]) * scale_tensor[m // self.m_group_size]
-
-
         Scales = te.placeholder(scales_shape, dtype=self.out_dtype, name="Scales")
+
+        alphas = [te.const(alpha, dtype=self.out_dtype) for alpha in self.alphas]
 
         if self.has_lut_scale:
             LUT_Scales = te.placeholder((N, K // self.act_group_size), dtype=self.out_dtype, name="LUT_Scales")
             LUT_Biases = te.placeholder((N, K // self.act_group_size), dtype=self.out_dtype, name="LUT_Biases")
+            def _lut_scale(n, k, val):
+                return val * LUT_Scales[n, k * self.g // self.act_group_size] + LUT_Biases[n, k * self.g // self.act_group_size] * alphas[0]
+        else:
+            def _lut_scale(n, k, val):
+                return val
+
+        if not self.do_scale_final:
+            def _scale_first(m, n, k, lut_val):
+                return _lut_scale(n, k, lut_val.astype(self.out_dtype)) * _get_scale(m, k)
+            def _scale_final(m, n, cbits_sum):
+                return cbits_sum
+        else:
+            def _scale_first(m, n, k, lut_val):
+                return lut_val.astype(self.aggregation_dtype)
+            def _scale_final(m, n, cbits_sum):
+                return _lut_scale(n, 0, cbits_sum.astype(self.out_dtype)) * _get_scale(m, k)
 
         mask = te.const((1 << self.g) - 1, dtype=self.weight_dtype)
 
@@ -107,23 +145,15 @@ class QGeMMLUTBitsCodegen(OpCodegen):
         CBits = te.compute(
             (N, M),
             lambda n, m: te.sum(
-                LUT[n, k, _get_Abits(m, k)].astype(self.out_dtype) * (
-                    _get_scale(Scales, m, k)
-                        * LUT_Scales[n, k * self.g // self.act_group_size]
-                        + LUT_Biases[n, k * self.g // self.act_group_size]
-                    if self.has_lut_scale
-                    else _get_scale(Scales, m, k)
-                ),
+                _scale_first(m, n, k, LUT[n, k, _get_Abits(m, k)], Scales, LUT_Scales, LUT_Biases),
                 axis=k,
             ),
             name="CBits",
         )
 
-        alphas = [te.const(self.alphas[b], dtype=self.out_dtype) for b in range(self.bits)]
-
         C = te.compute(
             (N, M // self.bits),
-            lambda n, m: _madd_scale_bias(
+            lambda n, m: _scale_final(m, n,
                 sum([
                     CBits[
                         n,
@@ -133,7 +163,7 @@ class QGeMMLUTBitsCodegen(OpCodegen):
                     ] * alphas[b]
                     for b in range(self.bits)
                 ]),
-                Scales, LUT_Scales, LUT_Biases, n, m,
+                Scales, LUT_Scales, LUT_Biases,
             ),
             name="C",
         )
@@ -175,6 +205,8 @@ class QGeMMLUTBitsCodegen(OpCodegen):
             has_scale=True,
             has_lut_scale=self.has_lut_scale,
             out_dtype=self.out_dtype,
+            m_groups=self.m_groups,
+            do_scale_final=self.do_scale_final,
         )
         sch[CBits].tensorize(kiC, intrin)
         sch[CBits].pragma(koC, "import_llvm", ll_code)
@@ -221,7 +253,7 @@ class QGeMMLUTBitsCodegen(OpCodegen):
         c = (
             cbits.reshape((N, M // self.simd_n_out // self.bits, self.bits, self.simd_n_out))
                 .transpose(0, 1, 3, 2)
-                .dot(np.array(self.alphas[:self.bits], dtype=self.out_dtype))
+                .dot(np.array(self.alphas, dtype=self.out_dtype))
                 .reshape((N, M // self.bits))
         )
         
