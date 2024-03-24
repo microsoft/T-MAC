@@ -195,7 +195,6 @@ class QGeMMLUTBitsCodegen(OpCodegen):
             self.bm,
             self.kfactor,
             self.g,
-            self.group_size,
             self.act_group_size,
             self._ngroups_per_elem,
             self.bits,
@@ -207,6 +206,7 @@ class QGeMMLUTBitsCodegen(OpCodegen):
             out_dtype=self.out_dtype,
             m_groups=self.m_groups,
             do_scale_final=self.do_scale_final,
+            aggregation_dtype=self.aggregation_dtype,
         )
         sch[CBits].tensorize(kiC, intrin)
         sch[CBits].pragma(koC, "import_llvm", ll_code)
@@ -219,13 +219,18 @@ class QGeMMLUTBitsCodegen(OpCodegen):
         tvm.testing.assert_allclose(tvm_arrays[-1].numpy(), arrays[-1], atol=1e-2, rtol=1e-2)
 
     def _reference(self, M: int, N: int, K: int):
+        # TODO: rewrite
         a = np.random.randn(M // self.bm, K // self.g // self.kfactor, self.bm // self._ngroups_per_elem // self.simd_n_in, self.kfactor, self.simd_n_in).astype(self.weight_dtype)
         a_t = a.reshape(M // self.bm, K // self.g, self.bm // self._ngroups_per_elem)
 
         lut = np.random.randn(N, K // self.g, 2 ** self.g).astype(self.dtype)
 
-        scales = np.random.randn(M // self.bm, K // self.group_size, self.bm // self.bits // self.simd_n_out, self.simd_n_out).astype(self.out_dtype)
-        scales_t = scales.reshape(M // self.bm, K // self.group_size, self.bm // self.bits)
+        if self.m_groups == -1:
+            scales = np.random.randn(M // self.bm, K // self.group_size, self.bm // self.bits // self.simd_n_out, self.simd_n_out).astype(self.out_dtype)
+            scales_t = scales.reshape(M // self.bm, K // self.group_size, self.bm // self.bits)
+        else:
+            scales = np.random.randn(self.m_groups).astype(self.out_dtype)
+            scales_t = scales
 
         if self.has_lut_scale:
             lut_scales = np.random.randn(N, K // self.act_group_size).astype(self.out_dtype)

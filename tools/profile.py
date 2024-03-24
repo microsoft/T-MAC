@@ -65,6 +65,7 @@ def profile_codegen(
             "remote_kwargs": remote_kwargs,
             "cc_opts": cc_opts,
             "out_dtype": out_dtype,
+            "fast_aggregation_k": 0,
         }
         template_names = {
             k: f"{k}_{M}_{K}_{N}_{num_threads}_{dtype}"
@@ -129,9 +130,9 @@ def main():
     ]
 
     threads = [
-        # 1,
+        1,
         # 2,
-        4,
+        # 4,
         # 8,
         # 16,
     ]

@@ -10,7 +10,6 @@ def tbl(
     m: int,
     kfactor: int,
     g: int,
-    group_size: int,
     act_group_size: int,
     ngroups_per_elem: int,
     bits: int,

@@ -120,7 +120,7 @@ def partial_max(
             ib.emit(
                 tvm.tir.call_extern(
                     "int32",
-                    f"partial_max_{dtype}_k{k // g}",
+                    f"partial_max_g{g}_{dtype}_k{k // g}",
                     lut_scales_buffer.access_ptr("w"),
                     b_buffer.access_ptr("r"),
                 )
