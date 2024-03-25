@@ -69,7 +69,7 @@ def tbl(
         else:
             def _lut_scale(k, val):
                 return val
-    
+
         def _scale_first(m, k, lut_val):
             return _lut_scale(k, lut_val.astype(out_dtype)) * _get_scale(m, k)
     else:

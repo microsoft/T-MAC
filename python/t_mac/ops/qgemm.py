@@ -54,7 +54,7 @@ class QGeMMLUTBitsCodegen(OpCodegen):
             - -1 for GPTQ-like fine-grained scales
             - 1/2/3 for BitNet-like unified scales
         aggregation_dtype : str
-            Data type for aggregation.
+            Data type for aggregation. Only be used if do_scale_final is True.
         """
         super().__init__(*args, **kwargs)
 
@@ -112,7 +112,7 @@ class QGeMMLUTBitsCodegen(OpCodegen):
             scales_shape = (self.m_groups,)
             def _get_scale(m, k):
                 return Scales[m // m_group_size]
-        
+
         Scales = te.placeholder(scales_shape, dtype=self.out_dtype, name="Scales")
 
         alphas = [te.const(alpha, dtype=self.out_dtype) for alpha in self.alphas]
@@ -147,7 +147,7 @@ class QGeMMLUTBitsCodegen(OpCodegen):
         CBits = te.compute(
             (N, M),
             lambda n, m: te.sum(
-                _scale_first(m, n, k, LUT[n, k, _get_Abits(m, k)], Scales, LUT_Scales, LUT_Biases),
+                _scale_first(m, n, k, LUT[n, k, _get_Abits(m, k)]),
                 axis=k,
             ),
             name="CBits",
@@ -165,7 +165,6 @@ class QGeMMLUTBitsCodegen(OpCodegen):
                     ] * alphas[b]
                     for b in range(self.bits)
                 ]),
-                Scales, LUT_Scales, LUT_Biases,
             ),
             name="C",
         )
@@ -264,7 +263,7 @@ class QGeMMLUTBitsCodegen(OpCodegen):
                 .dot(np.array(self.alphas, dtype=self.out_dtype))
                 .reshape((N, M // self.bits))
         )
-        
+
         if self.has_lut_scale:
             return [a_t, lut, scales_t, lut_scales, lut_biases, c]
         else:
@@ -312,6 +311,7 @@ class QGeMMLUTBitsPreprocessorCodegen(OpCodegen):
         B = te.placeholder((N, K), dtype=self.out_dtype, name="B")
 
         sk = te.reduce_axis((0, self.act_group_size // self.g), "k")
+        # TODO: fuse with QLUT compute
         LUT_Scales = te.compute(
             (N, K // self.act_group_size),
             lambda n, kk: te.max(
@@ -408,7 +408,7 @@ class QGeMMLUTBitsPreprocessorCodegen(OpCodegen):
 
         def recp(s):
             return 1.0 / s if s != 0 else 0
-        
+
         ils = np.vectorize(recp)(lut_scales).astype(self.out_dtype)
         qlut = np.rint((qlut.transpose(0, 2, 1) * ils).transpose(0, 2, 1).reshape(N, K // self.g, 1 << self.g)).astype(self.dtype)
 

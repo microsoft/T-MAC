@@ -66,11 +66,11 @@ class OpCodegen:
             tensors = self._compute(*args)
             sch = self._schedule(tensors)
             return sch, tensors
-        
+
         return _func
 
     def compile(
-        self, 
+        self,
         *args,
         template_name: Optional[str] = None,
         n_trial: int = 1000,

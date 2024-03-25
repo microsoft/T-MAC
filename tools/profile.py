@@ -39,7 +39,7 @@ def profile_codegen(
             "dtype": dtype,
             "target": target,
             "save_dir": FLAGS.out_path,
-            "verify": False,
+            "verify": True,
             "target_host": target_host,
             "tune": FLAGS.tune,
             "reuse_tuned": FLAGS.reuse_tuned,
@@ -121,12 +121,13 @@ def main():
         # [12288, 4096, 1],
         # [4096, 4096, 1],
         # [11008, 4096, 1],
-        [4096, 11008, 1],
+        # [4096, 11008, 1],
         # [12288, 4096, 16],
         # [4096, 4096, 16],
         # [11008, 4096, 16],
         # [4096, 11008, 16],
         # [4096, 4096, 1],
+        [128, 128, 1],
     ]
 
     threads = [

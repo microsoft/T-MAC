@@ -1,5 +1,4 @@
 #include <string.h>
-#include <stdio.h>
 #ifdef __ARM_NEON
 #include <arm_neon.h>
 #elif defined __AVX2__
