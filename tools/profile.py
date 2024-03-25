@@ -1,4 +1,4 @@
-from t_mac.ops import GeMMCodegen, GeMMCLCodegen, QGeMMLUTBitsCodegen, QGeMMLUTBitsPreprocessorCodegen_
+from t_mac.ops import GeMMCodegen, GeMMCLCodegen, QGeMMLUTBitsCodegen, QGeMMLUTBitsPreprocessorCodegen
 import t_mac.utils
 import logging
 import os
@@ -82,7 +82,7 @@ def profile_codegen(
         "gemm": GeMMCodegen,
         "gemm_cl": GeMMCLCodegen,
         "qgemm_lut": QGeMMLUTBitsCodegen,
-        "preprocessor": QGeMMLUTBitsPreprocessorCodegen_,
+        "preprocessor": QGeMMLUTBitsPreprocessorCodegen,
     }
 
     def _eval(codegen_key):

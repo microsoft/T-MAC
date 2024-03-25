@@ -7,6 +7,7 @@
 #endif
 
 #include "types.h"
+#include <type_traits>
 
 template <bool has_scale, int K, int Bits>
 inline int32_t tbl_g4_float_float_update_impl(int32_t m, float_type* c, float_type* lut, uint8_t* a, float_type* scales) {
@@ -270,7 +271,10 @@ struct SignedWideningAdder {
 
 #endif
 
-template <bool has_scale, int K, int Bits, int ActK = 16, typename Adder = SignedHalvingAdder<ActK>>
+template <bool FastAggregation, int ActK>
+using SignedAdder = std::conditional_t<FastAggregation, SignedHalvingAdder<ActK>, SignedWideningAdder<ActK>>;
+
+template <bool has_scale, int K, int Bits, int ActK = 16, bool FastAggregation = false>
 inline int32_t tbl_g4_int8_float_update_impl(int32_t m, float_type* c, int8_t* lut, uint8_t* a, float_type* scales, float_type* lut_scales, float_type* lut_biases) {
 #ifdef __ARM_NEON
     const uint8x16_t vec_mask = vdupq_n_u8(0x0f);
@@ -281,7 +285,7 @@ inline int32_t tbl_g4_int8_float_update_impl(int32_t m, float_type* c, int8_t* l
         vec_lut[k] = vld1q_s8(lut + k * 16);
     }
 
-    Adder adder_bot, adder_top;
+    SignedAdder<FastAggregation, ActK> adder_bot, adder_top;
     for (int i = 0; i < m / 2; i += 16) {
         float16x8_t vec_c0, vec_c1, vec_c2, vec_c3;
 
@@ -340,7 +344,7 @@ inline int32_t tbl_g4_int8_float_update_impl(int32_t m, float_type* c, int8_t* l
         vec_lut[k] = _mm_loadu_si128(reinterpret_cast<__m128i*>(lut + k * 16));
     }
 
-    Adder adder;
+    SignedAdder<FastAggregation, ActK> adder;
     for (int i = 0; i < m / 2; i += 16) {
         __m256 vec_c0, vec_c1, vec_c2, vec_c3;
 
@@ -395,7 +399,7 @@ inline int32_t tbl_g4_int8_float_update_impl(int32_t m, float_type* c, int8_t* l
 }
 
 // Unified scale
-template <int K, int Bits, typename Adder = SignedWideningAdder<K>>
+template <int K, int Bits, bool FastAggregation = false>
 inline int32_t tbl_g4_int8_int32_update_impl(int32_t m, int32_t* c, int8_t* lut, uint8_t* a) {
 #ifdef __ARM_NEON
 #elif defined __AVX2__
@@ -407,7 +411,7 @@ inline int32_t tbl_g4_int8_int32_update_impl(int32_t m, int32_t* c, int8_t* lut,
         vec_lut[k] = _mm_loadu_si128(reinterpret_cast<__m128i*>(lut + k * 16));
     }
 
-    Adder adder;
+    SignedAdder<FastAggregation, K> adder;
     for (int i = 0; i < m / 2; i += 16) {
 #pragma unroll
         for (int k = 0; k < K; k++) {
@@ -445,15 +449,19 @@ inline int32_t tbl_g4_int8_int32_update_impl(int32_t m, int32_t* c, int8_t* lut,
 }
 
 // TODO: Add API to toggle FastAggregation
-#define tbl_g4_update(s, k, b)                                                                                                                                                 \
-    int32_t tbl_g4_float_float_update_##s##_##k##_##b(int32_t m, float_type* c, float_type* lut, uint8_t* a, float_type* scales) {                                             \
-        return tbl_g4_float_float_update_impl<s, k, b>(m, c, lut, a, scales);                                                                                                  \
-    }                                                                                                                                                                          \
-    int32_t tbl_g4_int8_float_update_##s##_##k##_##b(int32_t m, float_type* c, int8_t* lut, uint8_t* a, float_type* scales, float_type* lut_scales, float_type* lut_biases) {  \
-        return tbl_g4_int8_float_update_impl<s, k, b>(m, c, lut, a, scales, lut_scales, lut_biases);                                                                           \
-    }                                                                                                                                                                          \
-    int32_t tbl_g4_int8_int32_update_##s##_##k##_##b(int32_t m, int32_t* c, int8_t* lut, uint8_t* a) {                                                                         \
-        return tbl_g4_int8_int32_update_impl<k, b>(m, c, lut, a);                                                                                                              \
+#define tbl_g4_float_float_update(s, k, b, ak, fa)                                                                                                       \
+    int32_t tbl_g4_float_float_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa(int32_t m, float_type* c, float_type* lut, uint8_t* a, float_type* scales) {  \
+        return tbl_g4_float_float_update_impl<s, k, b>(m, c, lut, a, scales);                                                                            \
+    }
+
+#define tbl_g4_int8_float_update(s, k, b, ak, fa)                                                                                                                                                   \
+    int32_t tbl_g4_int8_float_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa(int32_t m, float_type* c, int8_t* lut, uint8_t* a, float_type* scales, float_type* lut_scales, float_type* lut_biases) {  \
+        return tbl_g4_int8_float_update_impl<s, k, b, ak, fa>(m, c, lut, a, scales, lut_scales, lut_biases);                                                                                        \
+    }
+
+#define tbl_g4_int8_int32_update(s, k, b, ak, fa)                                                                            \
+    int32_t tbl_g4_int8_int32_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa(int32_t m, int32_t* c, int8_t* lut, uint8_t* a) {  \
+        return tbl_g4_int8_int32_update_impl<k, b, fa>(m, c, lut, a);                                                        \
     }
 
 #ifdef __cplusplus
@@ -470,10 +478,7 @@ int32_t tbl_float_reset(int32_t m, float_type* c) {
     return 0;
 }
 
-tbl_g4_update(true, 8, 2)
-tbl_g4_update(true, 16, 2)
-tbl_g4_update(true, 8, 4)
-tbl_g4_update(true, 16, 4)
+//<body></body>
 
 #ifdef __cplusplus
 }

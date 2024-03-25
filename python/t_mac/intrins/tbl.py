@@ -22,6 +22,7 @@ def tbl(
     m_groups: int = -1,
     do_scale_final: bool = False,
     aggregation_dtype: str = "int32",
+    fast_aggregation: bool = False,
 ) -> Tuple[tvm.tir.TensorIntrin, str]:
     """Create a table lookup intrinsics for a given table size and bitwidth,
     weights should be within the same group.
@@ -101,6 +102,17 @@ def tbl(
         else:
             return t
 
+    api_args = (
+        g,
+        to_intrinstr(dtype),
+        to_intrinstr(out_dtype),
+        str(has_scale).lower(),
+        kfactor,
+        bits,
+        act_group_size // 4,
+        str(fast_aggregation).lower(),
+    )
+
     def _intrin_func(ins, outs):
         def _body():
             ib = tvm.tir.ir_builder.create()
@@ -117,7 +129,7 @@ def tbl(
             ib.emit(
                 tvm.tir.call_extern(
                     "int32",
-                    f"tbl_g{g}_{to_intrinstr(dtype)}_{to_intrinstr(out_dtype)}_update_{str(has_scale).lower()}_{kfactor}_{bits}",
+                    "tbl_g{}_{}_{}_update_s{}_k{}_b{}_ak{}_fa{}".format(*api_args),
                     *args,
                 )
             )
@@ -140,8 +152,10 @@ def tbl(
 
         return _body(), _reduce_reset(), _reduce_update()
 
+    body_code = "tbl_g{}_{}_{}_update({}, {}, {}, {}, {})".format(*api_args)
     with open(os.path.join(os.path.dirname(__file__), "tbl.cc"), "r") as fp:
         cc_code = fp.read()
+        cc_code = cc_code.replace("//<body></body>", body_code)
 
     temp = utils.tempdir()
     ll_path = temp.relpath("tbl.ll")
