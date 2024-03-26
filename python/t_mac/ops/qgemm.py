@@ -222,10 +222,10 @@ class QGeMMLUTBitsCodegen(OpCodegen):
 
     def _reference(self, M: int, N: int, K: int):
         # TODO: rewrite
-        a = np.random.randn(M // self.bm, K // self.g // self.kfactor, self.bm // self._ngroups_per_elem // self.simd_n_in, self.kfactor, self.simd_n_in).astype(self.weight_dtype)
+        a = np.random.randint(0, 256, (M // self.bm, K // self.g // self.kfactor, self.bm // self._ngroups_per_elem // self.simd_n_in, self.kfactor, self.simd_n_in)).astype(self.weight_dtype)
         a_t = a.reshape(M // self.bm, K // self.g, self.bm // self._ngroups_per_elem)
 
-        lut = np.random.randn(N, K // self.g, 2 ** self.g).astype(self.dtype)
+        lut = np.random.randint(-127, 127, (N, K // self.g, 2 ** self.g)).astype(self.dtype)
 
         if self.m_groups == -1:
             scales = np.random.randn(M // self.bm, K // self.group_size, self.bm // self.bits // self.simd_n_out, self.simd_n_out).astype(self.out_dtype)

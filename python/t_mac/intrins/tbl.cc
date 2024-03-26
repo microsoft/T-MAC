@@ -371,15 +371,15 @@ inline int32_t tbl_g4_int8_float_update_impl(int32_t m, float_type* c, int8_t* l
     ((ib) % Bits) ? (_mm256_mul_ps((vs),   _mm256_set1_ps(lut_scales[kk / ActK]))) \
                   : (_mm256_fmadd_ps((vs), _mm256_set1_ps(lut_scales[kk / ActK]), _mm256_set1_ps(lut_biases[kk / ActK])))
             if (kk == 0) {
-                vec_c0  = lut_fma(vec_v_low_low,   (i / 4    ));
-                vec_c1  = lut_fma(vec_v_low_high,  (i / 4 + 1));
-                vec_c2  = lut_fma(vec_v_high_low,  (i / 4 + 2));
-                vec_c3  = lut_fma(vec_v_high_high, (i / 4 + 3));
+                vec_c0 = lut_fma(vec_v_low_low,   (i / 4    ));
+                vec_c1 = lut_fma(vec_v_low_high,  (i / 4 + 1));
+                vec_c2 = lut_fma(vec_v_high_low,  (i / 4 + 2));
+                vec_c3 = lut_fma(vec_v_high_high, (i / 4 + 3));
             } else {
-                vec_c0 += lut_fma(vec_v_low_low,   (i / 4    ));
-                vec_c1 += lut_fma(vec_v_low_high,  (i / 4 + 1));
-                vec_c2 += lut_fma(vec_v_high_low,  (i / 4 + 2));
-                vec_c3 += lut_fma(vec_v_high_high, (i / 4 + 3));
+                vec_c0 = _mm256_add_ps(vec_c0, lut_fma(vec_v_low_low,   (i / 4    )));
+                vec_c1 = _mm256_add_ps(vec_c1, lut_fma(vec_v_low_high,  (i / 4 + 1)));
+                vec_c2 = _mm256_add_ps(vec_c2, lut_fma(vec_v_high_low,  (i / 4 + 2)));
+                vec_c3 = _mm256_add_ps(vec_c3, lut_fma(vec_v_high_high, (i / 4 + 3)));
             }
         }
 
