@@ -256,12 +256,7 @@ int32_t lut_ctor_g4_int8_impl(int32_t act_k, int8_t* qlut, float_type* b, float_
 extern "C" {
 #endif
 
-lut_ctor(0, 4)
-lut_ctor(8, 4)
-lut_ctor(16, 4)
-lut_ctor(0, 2)
-lut_ctor(8, 2)
-lut_ctor(16, 2)
+//<body></body>
 
 int32_t partial_max_g4_int8_k8(float_type* lut_scales, float_type* b) {
 #ifdef __ARM_NEON

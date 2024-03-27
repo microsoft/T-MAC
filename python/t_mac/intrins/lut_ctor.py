@@ -16,7 +16,7 @@ def lut_ctor(
     out_dtype = "float16",
     fast_aggregation_k: int = 16,
 ) -> Tuple[tvm.tir.TensorIntrin, str]:
-    
+
     B = te.placeholder((k,), out_dtype, name="B")
     LUT_Scales = te.placeholder((k // act_group_size,), out_dtype, name="LUT_Scales")
     LUT_Biases = te.placeholder((k // act_group_size,), out_dtype, name="LUT_Biases")
@@ -57,8 +57,9 @@ def lut_ctor(
         )
         return ib.get()
 
+    body_code = f"lut_ctor({fast_aggregation_k}, {bits})"
     with open(os.path.join(os.path.dirname(__file__), "lut_ctor.cc"), "r") as fp:
-        cc_code = fp.read()
+        cc_code = fp.read().replace("//<body></body>", body_code)
 
     temp = utils.tempdir()
     ll_path = temp.relpath("lut_ctor.ll")
@@ -91,10 +92,10 @@ def partial_max(
     cc_opts: Optional[list] = None,
     out_dtype = "float16",
 ) -> Tuple[tvm.tir.TensorIntrin, str]:
-    
+
     if dtype == "int8":
         maxv = 127
-    
+
     B = te.placeholder((k,), out_dtype, name="B")
     sk = te.reduce_axis((0, k // g), "k")
 

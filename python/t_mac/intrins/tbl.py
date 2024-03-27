@@ -154,8 +154,7 @@ def tbl(
 
     body_code = "tbl_g{}_{}_{}_update({}, {}, {}, {}, {})".format(*api_args)
     with open(os.path.join(os.path.dirname(__file__), "tbl.cc"), "r") as fp:
-        cc_code = fp.read()
-        cc_code = cc_code.replace("//<body></body>", body_code)
+        cc_code = fp.read().replace("//<body></body>", body_code)
 
     temp = utils.tempdir()
     ll_path = temp.relpath("tbl.ll")
