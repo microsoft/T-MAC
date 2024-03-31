@@ -1,8 +1,14 @@
 #include "lut_ctor.cc"
 
+lut_ctor(0, 4)
 
 int main() {
     int8_t qlut[8][16];
+    for (int i = 0; i < 8; i++) {
+        for (int j = 0; j < 16; j++) {
+            qlut[i][j] = 0;
+        }
+    }
     float_type b[32];
     for (int i = 0; i < 32; i++) {
         b[i] = i;

@@ -16,7 +16,6 @@ bits = 4
 g = 4
 group_size = 128
 act_group_size = 64
-num_threads = 16
 
 device_kwargs = get_default_device_kwargs("intel_win")
 
@@ -43,8 +42,8 @@ M = 4096 * bits
 N = 1
 K = 4096
 
-pf, arrays = preprocessor.compile(N, K, num_threads=num_threads)
-qf, _ = qgemm.compile(M, N, K, num_threads=num_threads)
+pf, _ = preprocessor.compile(N, K)
+qf, _ = qgemm.compile(M, N, K)
 
 bm = qgemm.bm
 kfactor = qgemm.kfactor
@@ -63,7 +62,7 @@ print(Cref)
 
 dev = tvm.device("llvm")
 # TVM Inputs
-A_t, Scales_t = preprocess_weights(Aref, Sref, bm=bm, kfactor=kfactor)
+A_t, Scales_t = preprocess_weights(Aref, Sref, bits=bits, g=g, bm=bm, kfactor=kfactor)
 A_t = tvm.nd.array(A_t, dev)
 B_t = tvm.nd.array(Bref, dev)
 Scales_t = tvm.nd.array(Scales_t, dev)
