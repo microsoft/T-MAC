@@ -63,6 +63,7 @@ def profile_codegen(
             "tune": FLAGS.tune,
             "reuse_tuned": FLAGS.reuse_tuned,
             "remote_kwargs": remote_kwargs,
+            "bits": bits,
             "cc_opts": cc_opts,
             "out_dtype": out_dtype,
             "fast_aggregation_k": 0,
@@ -119,7 +120,7 @@ def main():
         # (8192, 16384, 1),
         # (8192, 16384, 32),
         # [12288, 4096, 1],
-        # [4096, 4096, 1],
+        [4096, 4096, 1],
         # [11008, 4096, 1],
         # [4096, 11008, 1],
         # [12288, 4096, 16],
@@ -127,7 +128,7 @@ def main():
         # [11008, 4096, 16],
         # [4096, 11008, 16],
         # [4096, 4096, 1],
-        [128, 128, 1],
+        # [128, 128, 1],
     ]
 
     threads = [

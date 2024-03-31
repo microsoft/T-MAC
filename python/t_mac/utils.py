@@ -17,6 +17,7 @@ def get_default_device_kwargs(device: str):
                 "timeout": 600,
             },
             "cc_opts": None,
+            "out_dtype": "float16",
         }
     elif device == "android":
         return {
@@ -33,6 +34,7 @@ def get_default_device_kwargs(device: str):
                 "timeout": 600,
             },
             "cc_opts": ["-O3", "-march=armv8.2a+fp16"],
+            "out_dtype": "float16",
         }
     elif device == "intel_win":
         return {

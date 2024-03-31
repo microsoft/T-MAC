@@ -64,7 +64,7 @@ int32_t lut_ctor_g4_int8_impl(int32_t act_k, int8_t* qlut, float_type* b, float_
     float16_t scales = *lut_scales;
     float16_t t_scales = scales ? 1.0 / scales : 0.0;
 
-    for (int k = 0; k < act_k / 8; ++k) {
+    for (int k = 0; k < act_k / 32; ++k) {
         float16x8x4_t vec_bs = vld4q_f16(b + k * 32);
 
 #pragma unroll
@@ -92,7 +92,6 @@ int32_t lut_ctor_g4_int8_impl(int32_t act_k, int8_t* qlut, float_type* b, float_
         }
 
         biases += vaddvq_f16(vec_lut[0]);
-    }
 
 #pragma unroll
         for (int g = 0; g < 16; ++g) {
@@ -262,7 +261,7 @@ int32_t partial_max_g4_int8_k8(float_type* lut_scales, float_type* b) {
 #ifdef __ARM_NEON
     float16x8x4_t vec_bs = vld4q_f16(b);
     float16x8_t abssum = vabsq_f16(vec_bs.val[0]) + vabsq_f16(vec_bs.val[1]) + vabsq_f16(vec_bs.val[2]) + vabsq_f16(vec_bs.val[3]);
-    scales = vmaxvq_f16(abssum) / 127;
+    float16_t scales = vmaxvq_f16(abssum) / 127;
     *lut_scales = std::max(*lut_scales, scales);
 #elif defined __AVX2__
     const __m256i vec_bi = _mm256_set_epi32(112, 96, 80, 64, 48, 32, 16, 0);
