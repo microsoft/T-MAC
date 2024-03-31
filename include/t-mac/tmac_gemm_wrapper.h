@@ -74,8 +74,8 @@ public:
       .shape = luts_shape,
     };
 
-    tvm::runtime::PackedFunc pf = get_function({0, K, N, 0});
-    tvm::runtime::PackedFunc qf = get_function({M, K, N, bits});
+    tvm::runtime::PackedFunc pf = get_function({M, K, N, bits, 0});
+    tvm::runtime::PackedFunc qf = get_function({M, K, N, bits, 1});
 
     // Currently the parallelism of preprocessor is disabled due to large thread communication overhead in `benchmark.cc`.
     // But according to profiled results of python side, the overhead is not that large and the best NUM_THREADS should be 4.
@@ -87,7 +87,7 @@ public:
   // Activation (B): NxK
   // Parallelism is disabled for preprocessor
   // Should only be called in main thread
-  void llama_cpp_init(void* B, int K, int N)
+  void llama_cpp_init(void* B, int M, int K, int N, int bits)
   {
     assert(_allocated);
 
@@ -104,7 +104,7 @@ public:
       .data = _lut_biases,
     };
 
-    tvm::runtime::PackedFunc pf = get_function({0, K, N, 0});
+    tvm::runtime::PackedFunc pf = get_function({M, K, N, bits, 0});
     pf(B, &LUTSt, &LUTBt, &QLUTt);
   }
 
@@ -154,7 +154,7 @@ public:
     free(_lut_biases);
   }
 
-  using _fkey = std::tuple<int, int, int, int>;
+  using _fkey = std::tuple<int, int, int, int, int>;
 
   tvm::runtime::PackedFunc get_function(_fkey key)
   {
@@ -162,23 +162,25 @@ public:
     auto iter = _fcache.find(key);
     tvm::runtime::PackedFunc f;
     if (iter == _fcache.end()) {
-      if (std::get<0>(key) != 0) {
+      if (std::get<4>(key) != 0) {
         f = _mod_syslib.GetFunction(
           "qgemm_lut_"
-            + std::to_string(std::get<0>(key) * std::get<3>(key)) + "_"
-            + std::to_string(std::get<1>(key)) + "_"
-            + std::to_string(std::get<2>(key)) + "_"
-            + std::to_string(_n_threads) + "_"
+            + "t" + std::to_string(_n_threads) + "_"
             + "int8_"
-            + std::to_string(std::get<3>(key))
+            + "m" + std::to_string(std::get<0>(key) * std::get<3>(key)) + "_"
+            + "k" + std::to_string(std::get<1>(key)) + "_"
+            + "n" + std::to_string(std::get<2>(key)) + "_"
+            + "b" + std::to_string(std::get<3>(key))
         );
       } else {
         f = _mod_syslib.GetFunction(
           "preprocessor_"
-            + std::to_string(std::get<1>(key)) + "_"
-            + std::to_string(std::get<2>(key)) + "_"
-            + std::to_string(_n_threads) + "_"
-            + "int8"
+            + "t" + std::to_string(_n_threads) + "_"
+            + "int8_"
+            + "m" + std::to_string(std::get<0>(key) * std::get<3>(key)) + "_"
+            + "k" + std::to_string(std::get<1>(key)) + "_"
+            + "n" + std::to_string(std::get<2>(key)) + "_"
+            + "b" + std::to_string(std::get<3>(key))
         );
       }
       _fcache[key] = f;

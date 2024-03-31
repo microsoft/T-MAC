@@ -28,7 +28,9 @@ class OpCodegen:
             save_dir: str = "",
             target_host: Optional[str] = None,
             remote_kwargs: Optional[dict] = None,
-            cc_opts: Optional[list] = None) -> None:
+            cc_opts: Optional[list] = None,
+            num_threads: int = 4,
+    ) -> None:
         self.dtype = dtype
         self.name = name
         self.tune = tune
@@ -41,6 +43,7 @@ class OpCodegen:
         self.build_func = self.remote_kwargs.pop("build_func") if remote_kwargs is not None else None
         self.cc = os.environ.get("TVM_NDK_CC", None) if self.build_func == "ndk" else None
         self.cc_opts = cc_opts
+        self.num_threads = num_threads
 
     def _schedule(self, tensors: List[te.Tensor]):
         raise NotImplementedError
@@ -55,10 +58,7 @@ class OpCodegen:
         for key in cfg:
             setattr(self, key, cfg[key].val)
 
-    def template(self, template_name: Optional[str] = None):
-        if template_name is None:
-            template_name = self.name
-
+    def template(self, template_name: str):
         @autotvm.template(template_name)
         def _func(*args):
             cfg = autotvm.get_config()
@@ -69,18 +69,18 @@ class OpCodegen:
 
         return _func
 
+    def get_template_name(self, *args) -> str:
+        return self.name + f"_t{self.num_threads}_{self.dtype}"
+
     def compile(
         self,
         *args,
-        template_name: Optional[str] = None,
         n_trial: int = 1000,
-        num_threads: int = 4,
         thread_affinity: int = 1,
         return_lower: bool = False,
         **eval_kwargs,
     ):
-        if template_name is None:
-            template_name = self.name
+        template_name = self.get_template_name(*args)
         template = self.template(template_name)
 
         if self.tune:
@@ -90,7 +90,7 @@ class OpCodegen:
                 tuner = autotvm.tuner.GridSearchTuner(task)
 
                 def _preload_function(remote: rpc.RPCSession, build_result: tvm.runtime.Module):
-                    remote.get_function("runtime.config_threadpool")(thread_affinity, num_threads)
+                    remote.get_function("runtime.config_threadpool")(thread_affinity, self.num_threads)
 
                 if self.remote_kwargs is not None:
                     measure_option = autotvm.measure_option(
@@ -150,15 +150,12 @@ class OpCodegen:
     def evaluate(
         self,
         *args,
-        num_threads: int = 4,
         thread_affinity: int = 1,
-        template_name: Optional[str] = None,
         **eval_kwargs,
     ):
         func, arrays = self.compile(
             *args,
-            template_name=template_name,
-            num_threads=num_threads,
+            num_threads=self.num_threads,
             thread_affinity=thread_affinity,
             **eval_kwargs,
         )
@@ -191,7 +188,7 @@ class OpCodegen:
             get_num_threads = tvm.runtime.num_threads
             dev = tvm.device(self.target.kind.name)
 
-        config_threadpool(thread_affinity, num_threads)
+        config_threadpool(thread_affinity, self.num_threads)
         logger.info(f"Threads: {get_num_threads()}")
 
         tvm_arrays = [tvm.nd.array(a, dev) for a in arrays]

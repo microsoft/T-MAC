@@ -273,6 +273,7 @@ struct SignedWideningAdder {
 template <bool FastAggregation, int ActK>
 using SignedAdder = std::conditional_t<FastAggregation, SignedHalvingAdder<ActK>, SignedWideningAdder<ActK>>;
 
+// When FastAggregation is enabled, FastAggregationK = ActK
 template <bool has_scale, int K, int Bits, int ActK = 16, bool FastAggregation = false>
 inline int32_t tbl_g4_int8_float_update_impl(int32_t m, float_type* c, int8_t* lut, uint8_t* a, float_type* scales, float_type* lut_scales, float_type* lut_biases) {
 #ifdef __ARM_NEON
@@ -398,6 +399,7 @@ inline int32_t tbl_g4_int8_float_update_impl(int32_t m, float_type* c, int8_t* l
 }
 
 // Unified scale
+// When FastAggregation is enabled, FastAggregationK = K
 template <int K, int Bits, bool FastAggregation = false>
 inline int32_t tbl_g4_int8_int32_update_impl(int32_t m, int32_t* c, int8_t* lut, uint8_t* a) {
 #ifdef __ARM_NEON

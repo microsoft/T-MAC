@@ -47,10 +47,7 @@ def profile_codegen(
             "bits": bits,
             "cc_opts": cc_opts,
             "out_dtype": out_dtype,
-        }
-        template_names = {
-            k: f"{k}_{M}_{K}_{N}_{num_threads}_{dtype}_{bits}"
-            for k in codegen_keys
+            "num_threads": num_threads,
         }
         args = (M, N, K)
     elif "preprocessor" in FLAGS.kernel:
@@ -66,11 +63,8 @@ def profile_codegen(
             "bits": bits,
             "cc_opts": cc_opts,
             "out_dtype": out_dtype,
+            "num_threads": num_threads,
             "fast_aggregation_k": 0,
-        }
-        template_names = {
-            k: f"{k}_{M}_{K}_{N}_{num_threads}_{dtype}"
-            for k in codegen_keys
         }
         args = (N, K)
 
@@ -90,8 +84,6 @@ def profile_codegen(
         codegen = codegen_cls[codegen_key](name=codegen_key, **codegen_kwargs)
         return 1000 * codegen.evaluate(
             *args,
-            template_name=template_names[codegen_key],
-            num_threads=num_threads,
             thread_affinity=FLAGS.thread_affinity,
             **eval_kwargs,
         )
@@ -112,6 +104,7 @@ def parse_args():
     parser.add_argument("-t", "--tune", action="store_true")
     parser.add_argument("-r", "--reuse_tuned", action="store_true")
     parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument("-b", "--bits", type=int, default=2)
     return parser.parse_args()
 
 
@@ -144,7 +137,7 @@ def main():
         # "float16",
     ]
     header = True
-    bits = 2
+    bits = FLAGS.bits
 
     device_kwargs = t_mac.utils.get_default_device_kwargs(FLAGS.device)
 

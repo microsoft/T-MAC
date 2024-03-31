@@ -213,7 +213,8 @@ class QGeMMLUTBitsCodegen(OpCodegen):
         sch[CBits].tensorize(kiC, intrin)
         sch[CBits].pragma(koC, "import_llvm", ll_code)
 
-        sch[C].parallel(mo)
+        if self.num_threads > 1:
+            sch[C].parallel(mo)
 
         return sch
 
@@ -269,6 +270,9 @@ class QGeMMLUTBitsCodegen(OpCodegen):
         else:
             return [a_t, lut, scales_t, c]
 
+    def get_template_name(self, M: int, N: int, K: int) -> str:
+        return super().get_template_name() + f"_m{M}_k{K}_n{N}_b{self.bits}"
+
 
 class QGeMMLUTBitsPreprocessorCodegen(OpCodegen):
     """Preprocessor of QGeMMLUTBitsCodegen.
@@ -284,8 +288,16 @@ class QGeMMLUTBitsPreprocessorCodegen(OpCodegen):
         out_dtype: str = "float16",
         bits: int = 4,
         fast_aggregation_k: int = 16,
+        M: int = 0,
         **kwargs
     ):
+        """
+        Parameters:
+        -----------
+        M: int
+            Used by get_template_name.
+            Could be useful if the tuned parameters are different for different M.
+        """
         super().__init__(*args, **kwargs)
 
         self.out_dtype = out_dtype
@@ -302,6 +314,7 @@ class QGeMMLUTBitsPreprocessorCodegen(OpCodegen):
         #   = 1 / 2 (b0' + gamma * s0) + b1' + b2' * 2 + b3' * 4, where s0 = -1
         self._gamma = 1
         self.fast_aggregation_k = fast_aggregation_k
+        self.M = M
 
     def _define_config(self, cfg):
         self.kfactor = self.act_group_size // self.g
@@ -373,7 +386,8 @@ class QGeMMLUTBitsPreprocessorCodegen(OpCodegen):
         # Currently the parallelism of preprocessor is disabled due to large thread communication overhead in `benchmark.cc`.
         # But according to profiled results of python side, the overhead is not that large and the best NUM_THREADS should be 4.
         # TODO: Find out the reason for the high communication overhead in C++ side.
-        # sch[QLUT].parallel(ko)
+        # if self.num_threads > 1:
+        #     sch[QLUT].parallel(ko)
 
         return sch
 
@@ -413,3 +427,6 @@ class QGeMMLUTBitsPreprocessorCodegen(OpCodegen):
         qlut = np.rint((qlut.transpose(0, 2, 1) * ils).transpose(0, 2, 1).reshape(N, K // self.g, 1 << self.g)).astype(self.dtype)
 
         return [b_t, lut_scales, lut_biases, qlut]
+
+    def get_template_name(self, N: int, K: int) -> str:
+        return super().get_template_name() + f"_m{self.M}_k{K}_n{N}_b{self.bits}"

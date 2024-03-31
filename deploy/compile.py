@@ -1,4 +1,5 @@
 from t_mac.ops import QGeMMLUTBitsCodegen, QGeMMLUTBitsPreprocessorCodegen
+from t_mac.utils import get_default_device_kwargs
 import logging
 import os
 import argparse
@@ -15,24 +16,29 @@ logger = logging.getLogger("compile")
 # Please set for more configs
 MKNs = [
     # llama-7b
-    [12288, 4096, 1],
-    [4096, 4096, 1],
-    [11008, 4096, 1],
-    [4096, 11008, 1],
+    # M, K, N, m_groups
+    [12288, 4096, 1, -1],
+    [4096, 4096, 1, -1],
+    [11008, 4096, 1, -1],
+    [4096, 11008, 1, -1],
+    # BitNet
+    # [12288, 4096, 1, 3],
+    # [4096, 4096, 1, 1],
+    # [11008, 4096, 1, 1],
+    # [4096, 11008, 1, 1],
 ]
-KNs = [
-    [4096, 1],
-    [11008, 1],
-]
-bits = 4
 
 
 def compile(
     target: str,
     remote_kwargs: Optional[dict] = None,
     dtype: str = "int8",
-    **eval_kwargs,
+    cc_opts: Optional[list] = None,
+    eval_kwargs: Optional[dict] = None,
+    out_dtype: str = "float16",
 ):
+    bits = FLAGS.bits
+
     if target == "opencl" or target == "vulkan":
         target_host = "llvm -mtriple=arm64-linux-android -mattr=+neon"
     else:
@@ -42,11 +48,16 @@ def compile(
         "dtype": dtype,
         "target": target,
         "save_dir": FLAGS.out_path,
-        "verify": False,
+        "verify": True,
         "target_host": target_host,
         "tune": FLAGS.tune,
         "reuse_tuned": FLAGS.reuse_tuned,
         "remote_kwargs": remote_kwargs,
+        "bits": bits,
+        "cc_opts": cc_opts,
+        "out_dtype": out_dtype,
+        "act_group_size": FLAGS.act_group_size,
+        "num_threads": FLAGS.num_threads,
     }
 
     def insert(all: tvm.IRModule, new: tvm.IRModule):
@@ -57,30 +68,44 @@ def compile(
             return all
 
     mod = None
-    qgemm_lut = QGeMMLUTBitsCodegen(name="qgemm_lut", bits=bits, **codegen_kwargs)
-    preprocessor = QGeMMLUTBitsPreprocessorCodegen(name="preprocessor", **codegen_kwargs)
-    for M, K, N in MKNs:
+    qgemm_lut = QGeMMLUTBitsCodegen(
+        name="qgemm_lut",
+        group_size=FLAGS.group_size,
+        fast_aggregation=FLAGS.fast_aggregation,
+        **codegen_kwargs,
+    )
+    preprocessor = QGeMMLUTBitsPreprocessorCodegen(
+        name="preprocessor",
+        **codegen_kwargs,
+    )
+    for M, K, N, m_groups in MKNs:
         M = M * bits
         if FLAGS.one_thread_block:
             M = M // FLAGS.num_threads
+        qgemm_lut.m_groups = m_groups
+        preprocessor.M = M
+        if FLAGS.act_group_size == -1:
+            qgemm_lut.act_group_size = K
+            preprocessor.act_group_size = K
 
-        template_name = f"qgemm_lut_{M}_{K}_{N}_{FLAGS.num_threads}_{dtype}_{bits}"
         mod = insert(mod, qgemm_lut.compile(
             M, N, K,
-            template_name=template_name,
-            num_threads=FLAGS.num_threads,
             thread_affinity=FLAGS.thread_affinity,
             return_lower=True,
             **eval_kwargs,
         ))
-    for KN in KNs:
-        K, N = KN
 
-        template_name = f"preprocessor_{K}_{N}_{FLAGS.num_threads}_{dtype}"
+        if FLAGS.fast_aggregation:
+            if qgemm_lut.do_scale_final:
+                fast_aggregation_k = qgemm_lut.kfactor
+            else:
+                fast_aggregation_k = FLAGS.act_group_size // 4
+        else:
+            fast_aggregation_k = 0
+        preprocessor.fast_aggregation_k = fast_aggregation_k
+
         mod = insert(mod, preprocessor.compile(
             N, K,
-            template_name=template_name,
-            num_threads=FLAGS.num_threads,
             thread_affinity=FLAGS.thread_affinity,
             return_lower=True,
             **eval_kwargs,
@@ -98,7 +123,7 @@ def compile(
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-o", "--out_path", type=str, default="out")
-    parser.add_argument("-d", "--device", type=str, choices=["m2", "android"], default="m2")
+    parser.add_argument("-d", "--device", type=str, choices=["m2", "android", "intel_win"], default="m2")
     parser.add_argument("-tgt", "--target", type=str, choices=["llvm", "opencl", "vulkan"], default="llvm")
     parser.add_argument("-t", "--tune", action="store_true")
     parser.add_argument("-r", "--reuse_tuned", action="store_true")
@@ -109,48 +134,15 @@ def parse_args():
 
     parser.add_argument("-nt", "--num_threads", type=int, default=16)  # 16 big cores for M2-ultra
     parser.add_argument("-ta", "--thread_affinity", type=int, default=1)
+    parser.add_argument("-gs", "--group_size", type=int, default=128)
+    parser.add_argument("-ags", "--act_group_size", type=int, default=64, help="-1 for BitNet-like unified scale")
+    parser.add_argument("-fa", "--fast_aggregation", action="store_true")
     return parser.parse_args()
 
 
 def main():
-    dtype = "int8"
-
-    if FLAGS.device == "m2":
-        target = "llvm -mtriple=arm64-apple-darwin23.1.0 -mcpu=apple-m2"
-        eval_kwargs = {
-            "number": 1000,
-            "repeat": 100,
-        }
-        remote_kwargs = {
-            "key": "local",
-            "host": os.environ["TVM_TRACKER_HOST"],
-            "port": int(os.environ["TVM_TRACKER_PORT"]),
-            "build_func": "default",
-            "timeout": 600,
-        }
-    elif FLAGS.device == "android":
-        if FLAGS.target == "llvm":
-            target = "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+fullfp16,+fp-armv8,+neon"
-        else:
-            target = FLAGS.target
-        eval_kwargs = {
-            "number": 10,
-            "repeat": 10,
-        }
-        remote_kwargs = {
-            "key": "android",
-            "host": os.environ["TVM_TRACKER_HOST"],
-            "port": int(os.environ["TVM_TRACKER_PORT"]),
-            "build_func": "ndk",
-            "timeout": 600,
-        }
-
-    compile(
-        target,
-        remote_kwargs=remote_kwargs,
-        dtype=dtype,
-        **eval_kwargs,
-    )
+    device_kwargs = get_default_device_kwargs(FLAGS.device)
+    compile(**device_kwargs)
 
 
 if __name__ == "__main__":
