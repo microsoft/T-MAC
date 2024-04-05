@@ -40,6 +40,14 @@ public:
         _config_threadpool(tvm::runtime::Registry::Get("runtime.config_threadpool")),
         _allocated(false)
   {
+    set_num_threads(n_threads);
+  }
+
+  TMACGeMMWrapper() : TMACGeMMWrapper(1, 32) {}
+
+  void set_num_threads(int n_threads)
+  {
+    _n_threads = n_threads;
     (*_config_threadpool)(1, _n_threads);
     int num_threads = (*tvm::runtime::Registry::Get("runtime.NumThreads"))();
     LOG(INFO) << "NUM_THREADS: " << num_threads;
@@ -87,21 +95,19 @@ public:
   // Activation (B): NxK
   // Parallelism is disabled for preprocessor
   // Should only be called in main thread
-  void llama_cpp_init(void* B, int M, int K, int N, int bits)
+  void llama_cpp_init(void* B, void* qlut, void* lut_scales, void* lut_biases, int M, int K, int N, int bits)
   {
-    assert(_allocated);
-
     DLTensor Bt = {
       .data = B,
     };
     DLTensor QLUTt = {
-      .data = _qlut,
+      .data = qlut,
     };
     DLTensor LUTSt = {
-      .data = _lut_scales,
+      .data = lut_scales,
     };
     DLTensor LUTBt = {
-      .data = _lut_biases,
+      .data = lut_biases,
     };
 
     tvm::runtime::PackedFunc pf = get_function({M, K, N, bits, 0});
@@ -111,10 +117,8 @@ public:
   // Activation (B): NxK, Weights (A): MxK
   // This is the task of only one thread for GeMM: N x K x (M x num_threads)
   // Please split the blocks in llama.cpp and pass the right ptr for scales, A and C
-  void llama_cpp_compute(void* A, void* scales, void* C, int M, int K, int N, int bits)
+  void llama_cpp_compute(void* A, void* scales, void* qlut, void* lut_scales, void* lut_biases, void* C, int M, int K, int N, int bits)
   {
-    assert(_allocated);
-
     DLTensor At = {
       .data = A,
     };
@@ -125,33 +129,41 @@ public:
       .data = C,
     };
     DLTensor QLUTt = {
-      .data = _qlut,
+      .data = qlut,
     };
     DLTensor LUTSt = {
-      .data = _lut_scales,
+      .data = lut_scales,
     };
     DLTensor LUTBt = {
-      .data = _lut_biases,
+      .data = lut_biases,
     };
 
-    tvm::runtime::PackedFunc qf = get_function({M, K, N, bits});
+    tvm::runtime::PackedFunc qf = get_function({M, K, N, bits, 1});
     qf(&At, &QLUTt, &St, &LUTSt, &LUTBt, &Ct);
   }
 
   // Should only be called in main thread
   void set_workspace(int maxK, int maxN)
   {
+#if defined(_WIN32)
+    _qlut = _aligned_malloc(maxN * maxK / g * (1 << g) * sizeof(int8_t), kAllocAlignment);
+    _lut_scales = _aligned_malloc(maxN * maxK / _act_group_size * sizeof(T), kAllocAlignment);
+    _lut_biases = _aligned_malloc(maxN * maxK / _act_group_size * sizeof(T), kAllocAlignment);
+#else
     posix_memalign(&_qlut, kAllocAlignment, maxN * maxK / g * (1 << g) * sizeof(int8_t));
     posix_memalign(&_lut_scales, kAllocAlignment, maxN * maxK / _act_group_size * sizeof(T));
     posix_memalign(&_lut_biases, kAllocAlignment, maxN * maxK / _act_group_size * sizeof(T));
+#endif
     _allocated = true;
   }
 
   ~TMACGeMMWrapper()
   {
-    free(_qlut);
-    free(_lut_scales);
-    free(_lut_biases);
+    if (_allocated) {
+      free(_qlut);
+      free(_lut_scales);
+      free(_lut_biases);
+    }
   }
 
   using _fkey = std::tuple<int, int, int, int, int>;
