@@ -12,6 +12,8 @@
 #include <tuple>
 #include <mutex>
 
+#include "INIReader.h"
+
 namespace TMAC {
 
 constexpr size_t kAllocAlignment = 64;
@@ -30,20 +32,32 @@ constexpr DLDataType float_dtype = {
   .lanes = 1,
 };
 
+struct TMACGeMMConfig {
+  int bm;
+  int simd_n_in;
+  int simd_n_out;
+  int kfactor;
+  int group_size;
+  int lut_scales_size;
+  int scales_size;
+  int n_tile_num;
+};
+
 template <typename T, int g = 4>
 class TMACGeMMWrapper {
 public:
-  TMACGeMMWrapper(int n_threads, int act_group_size)
+  TMACGeMMWrapper(int n_threads, int act_group_size, const std::string& kcfg_file)
       : _n_threads(n_threads),
         _act_group_size(act_group_size),
         _mod_syslib((*tvm::runtime::Registry::Get("runtime.SystemLib"))()),
         _config_threadpool(tvm::runtime::Registry::Get("runtime.config_threadpool")),
-        _allocated(false)
+        _allocated(false),
+        _reader(kcfg_file)
   {
     set_num_threads(n_threads);
   }
 
-  TMACGeMMWrapper() : TMACGeMMWrapper(1, 32) {}
+  TMACGeMMWrapper() : TMACGeMMWrapper(1, 32, getenv("T_MAC_KCFG_FILE")) {}
 
   void set_num_threads(int n_threads)
   {
@@ -142,6 +156,29 @@ public:
     qf(&At, &QLUTt, &St, &LUTSt, &LUTBt, &Ct);
   }
 
+  TMACGeMMConfig get_kcfg(int M, int K, int N, int bits)
+  {
+    std::string section =
+      "qgemm_lut_"
+        + "t" + std::to_string(_n_threads) + "_"
+        + "int8_"
+        + "m" + std::to_string(std::get<0>(key) * std::get<3>(key)) + "_"
+        + "k" + std::to_string(std::get<1>(key)) + "_"
+        + "n" + std::to_string(std::get<2>(key)) + "_"
+        + "b" + std::to_string(std::get<3>(key));
+
+    return {
+      .bm              = _reader.GetInteger(section, "bm", 0),
+      .simd_n_in       = _reader.GetInteger(section, "simd_n_in", 0),
+      .simd_n_out      = _reader.GetInteger(section, "simd_n_out", 0),
+      .kfactor         = _reader.GetInteger(section, "kfactor", 0),
+      .group_size      = _reader.GetInteger(section, "group_size", 0),
+      .lut_scales_size = _reader.GetInteger(section, "lut_scales_size", 0),
+      .scales_size     = _reader.GetInteger(section, "scales_size", 0),
+      .n_tile_num      = _reader.GetInteger(section, "n_tile_num", 0),
+    };
+  }
+
   // Should only be called in main thread
   void set_workspace(int maxK, int maxN)
   {
@@ -160,9 +197,15 @@ public:
   ~TMACGeMMWrapper()
   {
     if (_allocated) {
+#if defined(_WIN32)
+      _aligned_free(_qlut);
+      _aligned_free(_lut_scales);
+      _aligned_free(_lut_biases);
+#else
       free(_qlut);
       free(_lut_scales);
       free(_lut_biases);
+#endif
     }
   }
 
@@ -217,6 +260,8 @@ private:
 
   bool _allocated;
   std::mutex _m;
+
+  INIReader _reader;
 };
 
 } // namespace TMAC
