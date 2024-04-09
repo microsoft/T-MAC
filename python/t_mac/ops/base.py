@@ -72,77 +72,100 @@ class OpCodegen:
     def get_template_name(self, *args) -> str:
         return self.name + f"_t{self.num_threads}_{self.dtype}"
 
+    @property
+    def log_path(self):
+        return os.path.join(self.save_path, "tune.log")
+
+    def tuning(
+        self,
+        *args,
+        n_trial: int = 1000,
+        thread_affinity: int = 1,
+        **eval_kwargs,
+    ):
+        template_name = self.get_template_name(*args)
+        log_path = self.log_path
+
+        if not (self.reuse_tuned and os.path.exists(log_path)):
+            task = autotvm.task.create(template_name, args=args, target=self.target)
+            tuner = autotvm.tuner.GridSearchTuner(task)
+
+            def _preload_function(remote: rpc.RPCSession, build_result: tvm.runtime.Module):
+                remote.get_function("runtime.config_threadpool")(thread_affinity, self.num_threads)
+
+            if self.remote_kwargs is not None:
+                measure_option = autotvm.measure_option(
+                    builder=autotvm.LocalBuilder(build_func=self.build_func),
+                    runner=autotvm.RPCRunner(
+                        module_loader=default_module_loader(_preload_function),
+                        **self.remote_kwargs,
+                        **eval_kwargs,
+                    ),
+                )
+            else:
+                measure_option = autotvm.measure_option(
+                    builder=autotvm.LocalBuilder(),
+                    runner=autotvm.LocalRunner(
+                        module_loader=default_module_loader(),
+                        **eval_kwargs,
+                    ),
+                )
+            n_trial = min(1000, len(task.config_space))
+            prefix = f"[Task {template_name}] "
+            tuner.tune(
+                n_trial=n_trial,
+                measure_option=measure_option,
+                callbacks=[
+                    autotvm.callback.progress_bar(n_trial, prefix=prefix),
+                    autotvm.callback.log_to_file(log_path),
+                ],
+            )
+
     def compile(
         self,
         *args,
         n_trial: int = 1000,
         thread_affinity: int = 1,
         return_lower: bool = False,
+        preserve_cfg: bool = False,
         **eval_kwargs,
     ):
         template_name = self.get_template_name(*args)
-        template = self.template(template_name)
 
-        if self.tune:
-            log_path = os.path.join(self.save_path, "tune.log")
-            if not (self.reuse_tuned and os.path.exists(log_path)):
-                task = autotvm.task.create(template_name, args=args, target=self.target)
-                tuner = autotvm.tuner.GridSearchTuner(task)
+        log_path = self.log_path
 
-                def _preload_function(remote: rpc.RPCSession, build_result: tvm.runtime.Module):
-                    remote.get_function("runtime.config_threadpool")(thread_affinity, self.num_threads)
-
-                if self.remote_kwargs is not None:
-                    measure_option = autotvm.measure_option(
-                        builder=autotvm.LocalBuilder(build_func=self.build_func),
-                        runner=autotvm.RPCRunner(
-                            module_loader=default_module_loader(_preload_function),
-                            **self.remote_kwargs,
-                            **eval_kwargs,
-                        ),
-                    )
+        with self.target:
+            if not preserve_cfg:
+                template = self.template(template_name)
+                if self.tune:
+                    self.tuning(*args, n_trial=n_trial, thread_affinity=thread_affinity, **eval_kwargs)
+                    ctx = autotvm.apply_history_best(log_path)
                 else:
-                    measure_option = autotvm.measure_option(
-                        builder=autotvm.LocalBuilder(),
-                        runner=autotvm.LocalRunner(
-                            module_loader=default_module_loader(),
-                            **eval_kwargs,
-                        ),
-                    )
-                n_trial = min(1000, len(task.config_space))
-                prefix = f"[Task {template_name}] "
-                tuner.tune(
-                    n_trial=n_trial,
-                    measure_option=measure_option,
-                    callbacks=[
-                        autotvm.callback.progress_bar(n_trial, prefix=prefix),
-                        autotvm.callback.log_to_file(log_path),
-                    ],
-                )
-            ctx = autotvm.apply_history_best(log_path)
-        else:
-            ctx = autotvm.FallbackContext()
+                    ctx = autotvm.FallbackContext()
 
-        with ctx:
-            with self.target:
-                s, tensors = template(*args)
-                logger.info(tvm.lower(s, tensors, simple_mode=True))
-                if return_lower:
-                    return tvm.lower(s, tensors, name=template_name)
+                with ctx:
+                    template(*args)
 
-                func = tvm.build(s, tensors, name=self.name)
-                if self.target.kind.name == "llvm":
-                    func.save(os.path.join(self.save_path, "src.S"), "s")
-                elif self.target.kind.name == "c":
-                    func.save(os.path.join(self.save_path, "src.c"), "c")
-                func_syslib = tvm.build(
-                    s,
-                    tensors,
-                    name=template_name,
-                    runtime=relay.backend.Runtime("cpp", {"system-lib": True}),
-                )
-                func_syslib.save(os.path.join(self.save_path, f"kernels.o"))
-                return func, self._reference(*args)
+            tensors = self._compute(*args)
+            s = self._schedule(tensors)
+
+            logger.info(tvm.lower(s, tensors, simple_mode=True))
+            if return_lower:
+                return tvm.lower(s, tensors, name=template_name)
+
+            func = tvm.build(s, tensors, name=self.name)
+            if self.target.kind.name == "llvm":
+                func.save(os.path.join(self.save_path, "src.S"), "s")
+            elif self.target.kind.name == "c":
+                func.save(os.path.join(self.save_path, "src.c"), "c")
+            func_syslib = tvm.build(
+                s,
+                tensors,
+                name=template_name,
+                runtime=relay.backend.Runtime("cpp", {"system-lib": True}),
+            )
+            func_syslib.save(os.path.join(self.save_path, f"kernels.o"))
+            return func, self._reference(*args)
 
     def _verify(self, tvm_arrays: List[tvm.nd.NDArray], arrays: List[np.ndarray]):
         tvm.testing.assert_allclose(tvm_arrays[-1].numpy(), arrays[-1], rtol=1e-5)

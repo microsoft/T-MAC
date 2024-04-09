@@ -36,14 +36,14 @@ public:
       : _n_threads(n_threads),
         _act_group_size(act_group_size),
         _allocated(false),
-        _reader(kcfg_file)
+        _reader(get_kfcg_file())
   {
     _mod_syslib = (*tvm::runtime::Registry::Get("runtime.SystemLib"))();
     _config_threadpool = tvm::runtime::Registry::Get("runtime.config_threadpool");
     set_num_threads(n_threads);
   }
 
-  TMACGeMMWrapper() : TMACGeMMWrapper(1, 32, getenv("T_MAC_KCFG_FILE")) {}
+  TMACGeMMWrapper() : TMACGeMMWrapper(1, 32, "") {}
 
   void set_num_threads(int n_threads)
   {
@@ -264,6 +264,21 @@ private:
   std::mutex _m;
 
   INIReader _reader;
+
+  std::string get_kcfg_file()
+  {
+    if (kcfg_file.empty()) {
+      if (const char* kcfg_file_cstr = getenv("TMAC_KCFG_FILE")) {
+        return kcfg_file_cstr
+      } else {
+#ifdef TMAC_KCFG_FILE
+        return TMAC_KCFG_FILE;
+#endif
+        LOG(FATAL) << "Please set TMAC_KCFG_FILE environment variable";
+        return "";
+      }
+    }
+  }
 };
 
 } // namespace TMAC

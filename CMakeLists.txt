@@ -25,7 +25,7 @@ set(KERNEL_DEPLOY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deploy)
 
 # add_custom_command(
 #   OUTPUT ${KERNEL_DEPLOY_DIR}/tuned/kernels.o kernels.o
-#   COMMAND python ${KERNEL_DEPLOY_DIR}/compile.py -t -r -o ${KERNEL_DEPLOY_DIR}/tuned -da -d intel_win -b 4 -nt 4
+#   COMMAND python ${KERNEL_DEPLOY_DIR}/compile.py -t -r -o ${KERNEL_DEPLOY_DIR}/tuned -da -d intel_win -b 4 -nt 1 -tb
 #   VERBATIM
 # )
 
@@ -72,3 +72,7 @@ install(
 
 install(TARGETS t_mac_kernels tvm_runtime LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(DIRECTORY ${TMAC_INCLUDE_DIRS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(
+  FILES ${KERNEL_DEPLOY_DIR}/tuned/kcfg.ini
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)

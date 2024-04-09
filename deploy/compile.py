@@ -1,10 +1,11 @@
 from t_mac.ops import QGeMMLUTBitsCodegen, QGeMMLUTBitsPreprocessorCodegen
 from t_mac.utils import get_default_device_kwargs
+
 import logging
 import os
 import argparse
-
 from typing import Optional
+import configparser
 
 import tvm
 from tvm import relay
@@ -17,7 +18,7 @@ logger = logging.getLogger("compile")
 MKNs = [
     # llama-7b
     # M, K, N, m_groups
-    [12288, 4096, 1, -1],
+    # [12288, 4096, 1, -1],
     [4096, 4096, 1, -1],
     [11008, 4096, 1, -1],
     [4096, 11008, 1, -1],
@@ -57,7 +58,7 @@ def compile(
         "cc_opts": cc_opts,
         "out_dtype": out_dtype,
         "act_group_size": FLAGS.act_group_size,
-        "num_threads": FLAGS.num_threads,
+        "num_threads": 1 if FLAGS.one_thread_block else FLAGS.num_threads,
     }
 
     def insert(all: tvm.IRModule, new: tvm.IRModule):
@@ -78,22 +79,44 @@ def compile(
         name="preprocessor",
         **codegen_kwargs,
     )
+    config = configparser.ConfigParser()
     for M, K, N, m_groups in MKNs:
         M = M * bits
-        if FLAGS.one_thread_block:
-            M = M // FLAGS.num_threads
         qgemm_lut.m_groups = m_groups
         preprocessor.M = M
         if FLAGS.act_group_size == -1:
             qgemm_lut.act_group_size = K
             preprocessor.act_group_size = K
 
-        mod = insert(mod, qgemm_lut.compile(
+        qgemm_mod = qgemm_lut.compile(
             M, N, K,
             thread_affinity=FLAGS.thread_affinity,
             return_lower=True,
             **eval_kwargs,
-        ))
+        )
+        template_name = qgemm_lut.get_template_name(M, N, K)
+        if FLAGS.one_thread_block:
+            # Reuse tuned configs set by the complete M, N, K
+            qgemm_mod = qgemm_lut.compile(
+                qgemm_lut.bm, N, K,
+                thread_affinity=FLAGS.thread_affinity,
+                return_lower=True,
+                preserve_cfg=True,
+                **eval_kwargs,
+            )
+            template_name = qgemm_lut.get_template_name(qgemm_lut.bm, N, K)
+        mod = insert(mod, qgemm_mod)
+        # Write kcfg
+        config[template_name] = {
+            "bm": str(qgemm_lut.bm),
+            "simd_n_in": str(qgemm_lut.simd_n_in),
+            "simd_n_out": str(qgemm_lut.simd_n_out),
+            "kfactor": str(qgemm_lut.kfactor),
+            "group_size": str(qgemm_lut.group_size),
+            "lut_scales_size": str(N * K // qgemm_lut.act_group_size),
+            "scales_size": str(qgemm_lut.m_groups if qgemm_lut.m_groups > 1 else (M // bits * K // qgemm_lut.group_size)),
+            "n_tile_num": str(M // qgemm_lut.bm),
+        }
 
         if FLAGS.fast_aggregation:
             if qgemm_lut.do_scale_final:
@@ -118,6 +141,9 @@ def compile(
                 runtime=relay.backend.Runtime("cpp", {"system-lib": True}),
             )
             syslib.save(os.path.join(FLAGS.out_path, f"kernels.o"))
+
+    with open(os.path.join(FLAGS.out_path, "kcfg.ini"), "w") as f:
+        config.write(f)
 
 
 def parse_args():

@@ -58,7 +58,23 @@ Compared to normal GeMM, the weights need to be first offline preprocessed. Plea
 
 ### From C++
 
-We provide a wrapper for TMAC-GeMM. Please refer to [benchmark](./deploy/benchmark.cc) for usage.
+We provide a wrapper for TMAC-GeMM.
+
+To call TMAC from llama.cpp, build the kernels with:
+
+```bash
+cd deploy
+python compile.py -t -o tuned -da -d intel_win -b 4 -nt 1 -tb
+```
+
+Then, build the project with:
+
+```bash
+mkdir build
+cd build
+cmake -DCMAKE_INSTALL_PREFIX=${PROJECT_DIR}/install ..
+cmake --build . --target install --config Release
+```
 
 ## TODO List
 
