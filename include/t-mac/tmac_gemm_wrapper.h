@@ -12,25 +12,11 @@
 #include <tuple>
 #include <mutex>
 
-#include "INIReader.h"
+#include "t-mac/INIReader.h"
 
 namespace TMAC {
 
 constexpr size_t kAllocAlignment = 64;
-constexpr DLDevice dev = {
-  .device_type = kDLCPU,
-  .device_id = 0,
-};
-constexpr DLDataType int_dtype = {
-  .code = kDLInt,
-  .bits = 8,
-  .lanes = 1,
-};
-constexpr DLDataType float_dtype = {
-  .code = kDLFloat,
-  .bits = sizeof(T) * 8,
-  .lanes = 1,
-};
 
 struct TMACGeMMConfig {
   int bm;
@@ -49,11 +35,11 @@ public:
   TMACGeMMWrapper(int n_threads, int act_group_size, const std::string& kcfg_file)
       : _n_threads(n_threads),
         _act_group_size(act_group_size),
-        _mod_syslib((*tvm::runtime::Registry::Get("runtime.SystemLib"))()),
-        _config_threadpool(tvm::runtime::Registry::Get("runtime.config_threadpool")),
         _allocated(false),
         _reader(kcfg_file)
   {
+    _mod_syslib = (*tvm::runtime::Registry::Get("runtime.SystemLib"))();
+    _config_threadpool = tvm::runtime::Registry::Get("runtime.config_threadpool");
     set_num_threads(n_threads);
   }
 
@@ -74,26 +60,41 @@ public:
     int64_t qlut_shape[3] = {N, K / g, (1 << g)};
     int64_t luts_shape[3] = {N, K / _act_group_size};
 
+    const DLDevice cpu_dev = {
+      /* .device_type = */ kDLCPU,
+      /* .device_id   = */ 0,
+    };
+    const DLDataType int_dtype = {
+      /* .code  = */ kDLInt,
+      /* .bits  = */ 8,
+      /* .lanes = */ 1,
+    };
+    const DLDataType float_dtype = {
+      /* .code  = */ kDLFloat,
+      /* .bits  = */ sizeof(T) * 8,
+      /* .lanes = */ 1,
+    };
+
     DLTensor QLUTt = {
-      .data = _qlut,
-      .device = dev,
-      .ndim = 3,
-      .dtype = int_dtype,
-      .shape = qlut_shape,
+      /* .data   = */ _qlut,
+      /* .device = */ cpu_dev,
+      /* .ndim   = */ 3,
+      /* .dtype  = */ int_dtype,
+      /* .shape  = */ qlut_shape,
     };
     DLTensor LUTSt = {
-      .data = _lut_scales,
-      .device = dev,
-      .ndim = 2,
-      .dtype = float_dtype,
-      .shape = luts_shape,
+      /* .data   = */ _lut_scales,
+      /* .device = */ cpu_dev,
+      /* .ndim   = */ 2,
+      /* .dtype  = */ float_dtype,
+      /* .shape  = */ luts_shape,
     };
     DLTensor LUTBt = {
-      .data = _lut_biases,
-      .device = dev,
-      .ndim = 2,
-      .dtype = float_dtype,
-      .shape = luts_shape,
+      /* .data   = */ _lut_biases,
+      /* .device = */ cpu_dev,
+      /* .ndim   = */ 2,
+      /* .dtype  = */ float_dtype,
+      /* .shape  = */ luts_shape,
     };
 
     tvm::runtime::PackedFunc pf = get_function({M, K, N, bits, 0});
@@ -112,16 +113,16 @@ public:
   void llama_cpp_init(void* B, void* qlut, void* lut_scales, void* lut_biases, int M, int K, int N, int bits)
   {
     DLTensor Bt = {
-      .data = B,
+      /* .data = */ B,
     };
     DLTensor QLUTt = {
-      .data = qlut,
+      /* .data = */ qlut,
     };
     DLTensor LUTSt = {
-      .data = lut_scales,
+      /* .data = */ lut_scales,
     };
     DLTensor LUTBt = {
-      .data = lut_biases,
+      /* .data = */ lut_biases,
     };
 
     tvm::runtime::PackedFunc pf = get_function({M, K, N, bits, 0});
@@ -134,22 +135,22 @@ public:
   void llama_cpp_compute(void* A, void* scales, void* qlut, void* lut_scales, void* lut_biases, void* C, int M, int K, int N, int bits)
   {
     DLTensor At = {
-      .data = A,
+      /* .data = */ A,
     };
     DLTensor St = {
-      .data = scales,
+      /* .data = */ scales,
     };
     DLTensor Ct = {
-      .data = C,
+      /* .data = */ C,
     };
     DLTensor QLUTt = {
-      .data = qlut,
+      /* .data = */ qlut,
     };
     DLTensor LUTSt = {
-      .data = lut_scales,
+      /* .data = */ lut_scales,
     };
     DLTensor LUTBt = {
-      .data = lut_biases,
+      /* .data = */ lut_biases,
     };
 
     tvm::runtime::PackedFunc qf = get_function({M, K, N, bits, 1});
@@ -159,23 +160,23 @@ public:
   TMACGeMMConfig get_kcfg(int M, int K, int N, int bits)
   {
     std::string section =
-      "qgemm_lut_"
-        + "t" + std::to_string(_n_threads) + "_"
-        + "int8_"
-        + "m" + std::to_string(std::get<0>(key) * std::get<3>(key)) + "_"
-        + "k" + std::to_string(std::get<1>(key)) + "_"
-        + "n" + std::to_string(std::get<2>(key)) + "_"
-        + "b" + std::to_string(std::get<3>(key));
+      std::string("qgemm_lut")
+        + "_t" + std::to_string(_n_threads)
+        + "_int8"
+        + "_m" + std::to_string(M * bits)
+        + "_k" + std::to_string(K)
+        + "_n" + std::to_string(N)
+        + "_b" + std::to_string(bits);
 
     return {
-      .bm              = _reader.GetInteger(section, "bm", 0),
-      .simd_n_in       = _reader.GetInteger(section, "simd_n_in", 0),
-      .simd_n_out      = _reader.GetInteger(section, "simd_n_out", 0),
-      .kfactor         = _reader.GetInteger(section, "kfactor", 0),
-      .group_size      = _reader.GetInteger(section, "group_size", 0),
-      .lut_scales_size = _reader.GetInteger(section, "lut_scales_size", 0),
-      .scales_size     = _reader.GetInteger(section, "scales_size", 0),
-      .n_tile_num      = _reader.GetInteger(section, "n_tile_num", 0),
+      /* .bm              = */ _reader.GetInteger(section, "bm", 0),
+      /* .simd_n_in       = */ _reader.GetInteger(section, "simd_n_in", 0),
+      /* .simd_n_out      = */ _reader.GetInteger(section, "simd_n_out", 0),
+      /* .kfactor         = */ _reader.GetInteger(section, "kfactor", 0),
+      /* .group_size      = */ _reader.GetInteger(section, "group_size", 0),
+      /* .lut_scales_size = */ _reader.GetInteger(section, "lut_scales_size", 0),
+      /* .scales_size     = */ _reader.GetInteger(section, "scales_size", 0),
+      /* .n_tile_num      = */ _reader.GetInteger(section, "n_tile_num", 0),
     };
   }
 
@@ -219,25 +220,26 @@ public:
     if (iter == _fcache.end()) {
       if (std::get<4>(key) != 0) {
         f = _mod_syslib.GetFunction(
-          "qgemm_lut_"
-            + "t" + std::to_string(_n_threads) + "_"
-            + "int8_"
-            + "m" + std::to_string(std::get<0>(key) * std::get<3>(key)) + "_"
-            + "k" + std::to_string(std::get<1>(key)) + "_"
-            + "n" + std::to_string(std::get<2>(key)) + "_"
-            + "b" + std::to_string(std::get<3>(key))
+          std::string("qgemm_lut")
+            + "_t" + std::to_string(_n_threads)
+            + "_int8"
+            + "_m" + std::to_string(std::get<0>(key) * std::get<3>(key))
+            + "_k" + std::to_string(std::get<1>(key))
+            + "_n" + std::to_string(std::get<2>(key))
+            + "_b" + std::to_string(std::get<3>(key))
         );
       } else {
         f = _mod_syslib.GetFunction(
-          "preprocessor_"
-            + "t" + std::to_string(_n_threads) + "_"
-            + "int8_"
-            + "m" + std::to_string(std::get<0>(key) * std::get<3>(key)) + "_"
-            + "k" + std::to_string(std::get<1>(key)) + "_"
-            + "n" + std::to_string(std::get<2>(key)) + "_"
-            + "b" + std::to_string(std::get<3>(key))
+          std::string("preprocessor")
+            + "_t" + std::to_string(_n_threads)
+            + "_int8"
+            + "_m" + std::to_string(std::get<0>(key) * std::get<3>(key))
+            + "_k" + std::to_string(std::get<1>(key))
+            + "_n" + std::to_string(std::get<2>(key))
+            + "_b" + std::to_string(std::get<3>(key))
         );
       }
+      ICHECK(f != nullptr);
       _fcache[key] = f;
       return f;
     } else {

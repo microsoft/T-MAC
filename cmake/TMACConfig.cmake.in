@@ -1,0 +1,31 @@
+@PACKAGE_INIT@
+
+set_and_check(TMAC_LIB_DIR "@PACKAGE_TMAC_LIB_INSTALL_DIR@")
+set_and_check(TMAC_INCLUDE_DIRS "@PACKAGE_TMAC_INCLUDE_INSTALL_DIR@")
+
+find_library(
+  tvm_runtime_LIBRARY tvm_runtime
+  REQUIRED
+  HINTS ${TMAC_LIB_DIR}
+)
+
+find_library(
+  t_mac_kernels_LIBRARY t_mac_kernels
+  REQUIRED
+  HINTS ${TMAC_LIB_DIR}
+)
+
+add_library(t_mac UNKNOWN IMPORTED)
+set_target_properties(
+  t_mac
+  PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "${TMAC_INCLUDE_DIRS}"
+    INTERFACE_LINK_LIBRARIES "${tvm_runtime_LIBRARY}"
+    INTERFACE_COMPILE_DEFINITIONS "@TMAC_COMPILE_DEFS@"
+    IMPORTED_LINK_INTERFACE_LANGUAGES "CXX"
+    IMPORTED_LOCATION "${t_mac_kernels_LIBRARY}"
+    INTERFACE_COMPILE_FEATURES cxx_std_17
+    POSITION_INDEPENDENT_CODE ON
+)
+
+check_required_components(t_mac)

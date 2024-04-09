@@ -1,0 +1,4 @@
+[submodule "3rdparty/tvm"]
+	path = 3rdparty/tvm
+	url = https://github.com/apache/tvm.git
+	branch = v0.15.0
