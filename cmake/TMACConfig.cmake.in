@@ -9,15 +9,15 @@ find_library(
   HINTS ${TMAC_LIB_DIR}
 )
 
-find_library(
-  t_mac_kernels_LIBRARY t_mac_kernels
+find_file(
+  t_mac_kernels_OBJECT @KERNEL_OBJECT_NAME@
   REQUIRED
   HINTS ${TMAC_LIB_DIR}
 )
 
 set(TMAC_COMPILE_DEFS @TMAC_COMPILE_DEFS@ TMAC_KCFG_FILE=${TMAC_LIB_DIR}/kcfg.ini)
 
-add_library(t_mac UNKNOWN IMPORTED)
+add_library(t_mac OBJECT IMPORTED)
 set_target_properties(
   t_mac
   PROPERTIES
@@ -25,7 +25,7 @@ set_target_properties(
     INTERFACE_LINK_LIBRARIES "${tvm_runtime_LIBRARY}"
     INTERFACE_COMPILE_DEFINITIONS "${TMAC_COMPILE_DEFS}"
     IMPORTED_LINK_INTERFACE_LANGUAGES "CXX"
-    IMPORTED_LOCATION "${t_mac_kernels_LIBRARY}"
+    IMPORTED_OBJECTS "${t_mac_kernels_OBJECT}"
     INTERFACE_COMPILE_FEATURES cxx_std_17
     POSITION_INDEPENDENT_CODE ON
 )
