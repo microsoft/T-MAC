@@ -29,19 +29,33 @@ set(KERNEL_DEPLOY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deploy)
 #   VERBATIM
 # )
 
-set(KERNEL_OBJECT_NAME kernels.o)
-
-add_library(t_mac_kernels OBJECT IMPORTED)
-set_target_properties(
-  t_mac_kernels
-  PROPERTIES
-    IMPORTED_OBJECTS ${KERNEL_DEPLOY_DIR}/tuned/${KERNEL_OBJECT_NAME}
+find_file(
+  kernels_LIBRARY kernels.dll
+  REQUIRED
+  HINTS ${KERNEL_DEPLOY_DIR}/tuned/
 )
 
-# add_library(t_mac_kernels STATIC $<TARGET_OBJECTS:t_mac_kernels_objs>)
-# set_target_properties(t_mac_kernels PROPERTIES LINKER_LANGUAGE CXX)
+find_file(
+  kernels_OBJECT kernels.o
+  REQUIRED
+  HINTS ${KERNEL_DEPLOY_DIR}/tuned/
+)
 
-add_dependencies(t_mac_kernels tvm_runtime)
+find_file(
+  tuned_kcfg kcfg.ini
+  REQUIRED
+  HINTS ${KERNEL_DEPLOY_DIR}/tuned/
+)
+
+add_library(kernels_objs OBJECT IMPORTED)
+set_target_properties(
+  kernels_objs
+  PROPERTIES
+    IMPORTED_OBJECTS ${kernels_OBJECT}
+)
+add_library(kernels_static STATIC $<TARGET_OBJECTS:kernels_objs>)
+set_target_properties(kernels_static PROPERTIES LINKER_LANGUAGE CXX)
+target_link_libraries(kernels_static PUBLIC tvm_runtime)
 
 set(
   TMAC_COMPILE_DEFS
@@ -72,9 +86,9 @@ install(
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/t-mac
 )
 
-install(TARGETS tvm_runtime LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(TARGETS kernels_static tvm_runtime LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(DIRECTORY ${TMAC_INCLUDE_DIRS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(
-  FILES ${KERNEL_DEPLOY_DIR}/tuned/kcfg.ini $<TARGET_OBJECTS:t_mac_kernels>
+  FILES ${tuned_kcfg} ${kernels_OBJECT} ${kernels_LIBRARY}
   DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )

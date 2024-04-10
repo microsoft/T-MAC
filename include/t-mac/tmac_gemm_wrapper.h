@@ -50,24 +50,47 @@ inline std::string get_kcfg_file(const std::string& kcfg_file)
   }
 }
 
+inline std::string get_library_file(const std::string& library_file)
+{
+  if (library_file.empty()) {
+    if (const char* library_file_cstr = getenv("TMAC_KERNELS_LIBRARY")) {
+      return library_file_cstr;
+    } else {
+#ifdef TMAC_KERNELS_LIBRARY
+      return STR(TMAC_KERNELS_LIBRARY);
+#else
+      LOG(FATAL) << "Please set TMAC_KERNELS_LIBRARY environment variable";
+      return "";
+#endif
+    }
+  } else {
+    return library_file;
+  }
+}
+
 #undef STR
 #undef QUOTE
 
 template <typename T, int g = 4>
 class TMACGeMMWrapper {
 public:
-  TMACGeMMWrapper(int n_threads, int act_group_size, const std::string& kcfg_file)
+  TMACGeMMWrapper(int n_threads, int act_group_size, const std::string& kcfg_file, const std::string& library_file)
       : _n_threads(n_threads),
         _act_group_size(act_group_size),
         _allocated(false),
         _reader(get_kcfg_file(kcfg_file))
   {
-    _mod_syslib = (*tvm::runtime::Registry::Get("runtime.SystemLib"))();
+#ifdef TMAC_USE_SYSLIB
+    _mod_lib = (*tvm::runtime::Registry::Get("runtime.SystemLib"))();
+#else
+    LOG(INFO) << "Loading kernels from: " << get_library_file(library_file);
+    _mod_lib = tvm::runtime::Module::LoadFromFile(get_library_file(library_file));
+#endif
     _config_threadpool = tvm::runtime::Registry::Get("runtime.config_threadpool");
     set_num_threads(n_threads);
   }
 
-  TMACGeMMWrapper() : TMACGeMMWrapper(1, 32, "") {}
+  TMACGeMMWrapper() : TMACGeMMWrapper(1, 32, "", "") {}
 
   void set_num_threads(int n_threads)
   {
@@ -243,7 +266,7 @@ public:
     tvm::runtime::PackedFunc f;
     if (iter == _fcache.end()) {
       if (std::get<4>(key) != 0) {
-        f = _mod_syslib.GetFunction(
+        f = _mod_lib.GetFunction(
           std::string("qgemm_lut")
             + "_t" + std::to_string(_n_threads)
             + "_int8"
@@ -253,7 +276,7 @@ public:
             + "_b" + std::to_string(std::get<3>(key))
         );
       } else {
-        f = _mod_syslib.GetFunction(
+        f = _mod_lib.GetFunction(
           std::string("preprocessor")
             + "_t" + std::to_string(_n_threads)
             + "_int8"
@@ -272,7 +295,7 @@ public:
   }
 
 private:
-  tvm::runtime::Module _mod_syslib;
+  tvm::runtime::Module _mod_lib;
   std::map<_fkey, tvm::runtime::PackedFunc> _fcache;
   const tvm::runtime::PackedFunc* _config_threadpool;
 

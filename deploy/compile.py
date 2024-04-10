@@ -141,7 +141,9 @@ def compile(
                 mod,
                 runtime=relay.backend.Runtime("cpp", {"system-lib": True}),
             )
-            syslib.save(os.path.join(FLAGS.out_path, f"kernels.o"))
+            syslib.save(os.path.join(FLAGS.out_path, "kernels.o"))
+            dylib = tvm.build(mod)
+            dylib.export_library(os.path.join(FLAGS.out_path, "kernels.dll"))
 
     with open(os.path.join(FLAGS.out_path, "kcfg.ini"), "w") as f:
         config.write(f)
