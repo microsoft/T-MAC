@@ -97,6 +97,8 @@ def compile(
         template_name = qgemm_lut.get_template_name(M, N, K)
         if FLAGS.one_thread_block:
             # Reuse tuned configs set by the complete M, N, K
+            # The section name in kcfg.ini will be the same as the complete M, N, K
+            # The kernel name will be constructed from tiled m, n, k
             qgemm_mod = qgemm_lut.compile(
                 qgemm_lut.bm, N, K,
                 thread_affinity=FLAGS.thread_affinity,
@@ -104,7 +106,6 @@ def compile(
                 preserve_cfg=True,
                 **eval_kwargs,
             )
-            template_name = qgemm_lut.get_template_name(qgemm_lut.bm, N, K)
         mod = insert(mod, qgemm_mod)
         # Write kcfg
         config[template_name] = {

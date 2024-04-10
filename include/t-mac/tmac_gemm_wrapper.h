@@ -45,6 +45,8 @@ inline std::string get_kcfg_file(const std::string& kcfg_file)
       return "";
 #endif
     }
+  } else {
+    return kcfg_file;
   }
 }
 
@@ -179,7 +181,7 @@ public:
     qf(&At, &QLUTt, &St, &LUTSt, &LUTBt, &Ct);
   }
 
-  TMACGeMMConfig get_kcfg(int M, int K, int N, int bits)
+  TMACGeMMConfig get_kcfg(int M, int K, int N, int bits) const
   {
     std::string section =
       std::string("qgemm_lut")
