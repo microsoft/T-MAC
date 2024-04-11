@@ -173,7 +173,7 @@ public:
     };
 
     tvm::runtime::PackedFunc pf = get_function({M, K, N, bits, 0});
-    pf(B, &LUTSt, &LUTBt, &QLUTt);
+    pf(&Bt, &LUTSt, &LUTBt, &QLUTt);
   }
 
   // Activation (B): NxK, Weights (A): MxK
