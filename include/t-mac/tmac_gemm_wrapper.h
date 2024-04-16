@@ -75,7 +75,7 @@ template <typename T, int g = 4>
 class TMACGeMMWrapper {
 public:
   TMACGeMMWrapper(int n_threads, int act_group_size, const std::string& kcfg_file, const std::string& library_file)
-      : _n_threads(n_threads),
+      : _n_threads(0),
         _act_group_size(act_group_size),
         _allocated(false),
         _reader(get_kcfg_file(kcfg_file))
@@ -94,10 +94,12 @@ public:
 
   void set_num_threads(int n_threads)
   {
-    _n_threads = n_threads;
-    (*_config_threadpool)(1, _n_threads);
-    int num_threads = (*tvm::runtime::Registry::Get("runtime.NumThreads"))();
-    LOG(INFO) << "NUM_THREADS: " << num_threads;
+    if (n_threads != _n_threads) {
+      _n_threads = n_threads;
+      (*_config_threadpool)(1, _n_threads);
+      int num_threads = (*tvm::runtime::Registry::Get("runtime.NumThreads"))();
+      LOG(INFO) << "NUM_THREADS: " << num_threads;
+    }
   }
 
   void run(DLTensor* A, DLTensor* scales, DLTensor* B, DLTensor* C, int M, int K, int N, int bits)
@@ -206,24 +208,32 @@ public:
 
   TMACGeMMConfig get_kcfg(int M, int K, int N, int bits) const
   {
-    std::string section =
-      std::string("qgemm_lut")
-        + "_t" + std::to_string(_n_threads)
-        + "_int8"
-        + "_m" + std::to_string(M * bits)
-        + "_k" + std::to_string(K)
-        + "_n" + std::to_string(N)
-        + "_b" + std::to_string(bits);
+    // TODO: find a better way to find kcfg when _n_threads is unknown
+    const std::vector<int> n_threads_hints = {1, 4, 8, 16};
+    std::string section;
+    for (int n_threads : n_threads_hints) {
+      section =
+        std::string("qgemm_lut")
+          + "_t" + std::to_string(n_threads)
+          + "_int8"
+          + "_m" + std::to_string(M * bits)
+          + "_k" + std::to_string(K)
+          + "_n" + std::to_string(N)
+          + "_b" + std::to_string(bits);
+      if (_reader.Sections().count(section) > 0) {
+        break;
+      }
+    }
 
     return {
-      /* .bm              = */ _reader.GetInteger(section, "bm", 0),
-      /* .simd_n_in       = */ _reader.GetInteger(section, "simd_n_in", 0),
-      /* .simd_n_out      = */ _reader.GetInteger(section, "simd_n_out", 0),
-      /* .kfactor         = */ _reader.GetInteger(section, "kfactor", 0),
-      /* .group_size      = */ _reader.GetInteger(section, "group_size", 0),
-      /* .lut_scales_size = */ _reader.GetInteger(section, "lut_scales_size", 0),
-      /* .scales_size     = */ _reader.GetInteger(section, "scales_size", 0),
-      /* .n_tile_num      = */ _reader.GetInteger(section, "n_tile_num", 0),
+      /* .bm              = */ (int)_reader.GetInteger(section, "bm", 0),
+      /* .simd_n_in       = */ (int)_reader.GetInteger(section, "simd_n_in", 0),
+      /* .simd_n_out      = */ (int)_reader.GetInteger(section, "simd_n_out", 0),
+      /* .kfactor         = */ (int)_reader.GetInteger(section, "kfactor", 0),
+      /* .group_size      = */ (int)_reader.GetInteger(section, "group_size", 0),
+      /* .lut_scales_size = */ (int)_reader.GetInteger(section, "lut_scales_size", 0),
+      /* .scales_size     = */ (int)_reader.GetInteger(section, "scales_size", 0),
+      /* .n_tile_num      = */ (int)_reader.GetInteger(section, "n_tile_num", 0),
     };
   }
 
@@ -265,28 +275,28 @@ public:
     auto iter = _fcache.find(key);
     tvm::runtime::PackedFunc f;
     if (iter == _fcache.end()) {
+      std::string func_name;
       if (std::get<4>(key) != 0) {
-        f = _mod_lib.GetFunction(
+        func_name = 
           std::string("qgemm_lut")
             + "_t" + std::to_string(_n_threads)
             + "_int8"
             + "_m" + std::to_string(std::get<0>(key) * std::get<3>(key))
             + "_k" + std::to_string(std::get<1>(key))
             + "_n" + std::to_string(std::get<2>(key))
-            + "_b" + std::to_string(std::get<3>(key))
-        );
+            + "_b" + std::to_string(std::get<3>(key));
       } else {
-        f = _mod_lib.GetFunction(
+        func_name = 
           std::string("preprocessor")
             + "_t" + std::to_string(_n_threads)
             + "_int8"
             + "_m" + std::to_string(std::get<0>(key) * std::get<3>(key))
             + "_k" + std::to_string(std::get<1>(key))
             + "_n" + std::to_string(std::get<2>(key))
-            + "_b" + std::to_string(std::get<3>(key))
-        );
+            + "_b" + std::to_string(std::get<3>(key));
       }
-      ICHECK(f != nullptr);
+      f = _mod_lib.GetFunction(func_name);
+      ICHECK(f != nullptr) << func_name;
       _fcache[key] = f;
       return f;
     } else {
