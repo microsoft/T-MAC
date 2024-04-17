@@ -41,10 +41,12 @@ The following table shows the speedup on M2-Ultra compared to llama.cpp for llam
 
 By integrating T-MAC kernels to llama.cpp, we obtain the following table to show the speedup on M2-Ultra for llama-7b duing token generation (NUM_THREADS=1):
 
-| Bits | T-MAC (CPU) (tokens/sec) | llama.cpp (CPU) |
-|------|--------------------------|-----------------|
-| 4    | 7.80                     | 5.56            |
-| 2    | 16.17                    | 3.63            |
+| Model      | Bits | T-MAC (CPU) (tokens/sec) | llama.cpp (CPU) |
+|------------|------|--------------------------|-----------------|
+| llama-2-7b | 4    | 7.80                     | 5.56            |
+| llama-2-7b | 2    | 16.17                    | 3.63            |
+|            |      |                          |                 |
+| BitNet-3b  | 2    | 24.36                    | 7.38            |
 
 *We will release multi-threading performance soon.*
 
