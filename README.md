@@ -23,7 +23,7 @@ Our method exhibits several notable characteristics:
 
 Our kernels demonstrate superior performance over SOTA low-bit GeMM on CPU. Due to the linear scaling characteristic of T-MAC, our kernels deliver improved results at 2 bits, even surpassing the performance of Metal GPUs.
 
-The following table shows the speedup on M2-Ultra compared to llama.cpp for llama-7b kernels during token generation:
+The following table shows the speedup on M2-Ultra compared to llama.cpp for llama-7b kernels during token generation (NUM_THREADS=16):
 
 | Bits | M     | N | K     | T-MAC (CPU) (ms) | llama.cpp (CPU) | llama.cpp (METAL GPU) |
 |------|-------|---|-------|-------------|-----------------|-------------------|
@@ -36,6 +36,17 @@ The following table shows the speedup on M2-Ultra compared to llama.cpp for llam
 | 2    | 4096  | 1 | 4096  | 0.013   | 0.048          | 0.016           |
 | 2    | 11008 | 1 | 4096  | 0.029 | 0.105         | 0.035           |
 | 2    | 4096  | 1 | 11008 | 0.028    | 0.116         | 0.037           |
+
+## E2E Speedup to llama.cpp
+
+By integrating T-MAC kernels to llama.cpp, we obtain the following table to show the speedup on M2-Ultra for llama-7b duing token generation (NUM_THREADS=1):
+
+| Bits | T-MAC (CPU) (tokens/sec) | llama.cpp (CPU) |
+|------|--------------------------|-----------------|
+| 4    | 7.80                     | 5.56            |
+| 2    | 16.17                    | 3.63            |
+
+*We will release multi-threading performance soon.*
 
 ## Usage
 
