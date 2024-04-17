@@ -2,7 +2,7 @@
 
 ## Introduction
 
-T-MAC is a kernel library supporting mixed-precission GeMM.
+T-MAC is a kernel library supporting mixed-precission GeMM on CPUs.
 
 LLM inference incurs significant computational cost. Low-bit quantization, a widely adopted technique, introduces the challenge of mixed-precision GeMM (mpGeMM), which is not directly supported by hardware and requires convert/dequant operations.
 
@@ -47,6 +47,17 @@ By integrating T-MAC kernels to llama.cpp, we obtain the following table to show
 | 2    | 16.17                    | 3.63            |
 
 *We will release multi-threading performance soon.*
+
+## Cite
+If you find this repository useful, please use the following BibTeX entry for citation.
+```
+@misc{t-mac,
+      title={T-MAC: CPU Renaissance via Table Lookup for Low-Bit LLM Inference}, 
+      author={Jianyu Wei and Shijie Cao and Ting Cao and Lei Wang and Lingxiao Ma},
+      year={2024},
+      url={https://github.com/microsoft/T-MAC/}
+}
+```
 
 ## Usage
 
