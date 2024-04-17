@@ -206,7 +206,7 @@ public:
     qf(&At, &QLUTt, &St, &LUTSt, &LUTBt, &Ct);
   }
 
-  TMACGeMMConfig get_kcfg(int M, int K, int N, int bits) const
+  TMACGeMMConfig get_kcfg(int M, int K, int N, int bits)
   {
     // TODO: find a better way to find kcfg when _n_threads is unknown
     const std::vector<int> n_threads_hints = {1, 4, 8, 16};
