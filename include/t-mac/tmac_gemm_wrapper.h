@@ -211,19 +211,15 @@ public:
     // TODO: find a better way to find kcfg when _n_threads is unknown
     const std::vector<int> n_threads_hints = {1, 4, 8, 16};
     std::string section;
+    int old_n_threads = _n_threads;
     for (int n_threads : n_threads_hints) {
-      section =
-        std::string("qgemm_lut")
-          + "_t" + std::to_string(n_threads)
-          + "_int8"
-          + "_m" + std::to_string(M * bits)
-          + "_k" + std::to_string(K)
-          + "_n" + std::to_string(N)
-          + "_b" + std::to_string(bits);
+      _n_threads = n_threads;
+      section = get_template_name({M, K, N, bits, 1});
       if (_reader.Sections().count(section) > 0) {
         break;
       }
     }
+    _n_threads = old_n_threads;
 
     return {
       /* .bm              = */ (int)_reader.GetInteger(section, "bm", 0),
@@ -267,44 +263,9 @@ public:
     }
   }
 
+private:
   using _fkey = std::tuple<int, int, int, int, int>;
 
-  tvm::runtime::PackedFunc get_function(_fkey key)
-  {
-    std::lock_guard<std::mutex> lock(_m);
-    auto iter = _fcache.find(key);
-    tvm::runtime::PackedFunc f;
-    if (iter == _fcache.end()) {
-      std::string func_name;
-      if (std::get<4>(key) != 0) {
-        func_name = 
-          std::string("qgemm_lut")
-            + "_t" + std::to_string(_n_threads)
-            + "_int8"
-            + "_m" + std::to_string(std::get<0>(key) * std::get<3>(key))
-            + "_k" + std::to_string(std::get<1>(key))
-            + "_n" + std::to_string(std::get<2>(key))
-            + "_b" + std::to_string(std::get<3>(key));
-      } else {
-        func_name = 
-          std::string("preprocessor")
-            + "_t" + std::to_string(_n_threads)
-            + "_int8"
-            + "_m" + std::to_string(std::get<0>(key) * std::get<3>(key))
-            + "_k" + std::to_string(std::get<1>(key))
-            + "_n" + std::to_string(std::get<2>(key))
-            + "_b" + std::to_string(std::get<3>(key));
-      }
-      f = _mod_lib.GetFunction(func_name);
-      ICHECK(f != nullptr) << func_name;
-      _fcache[key] = f;
-      return f;
-    } else {
-      return iter->second;
-    }
-  }
-
-private:
   tvm::runtime::Module _mod_lib;
   std::map<_fkey, tvm::runtime::PackedFunc> _fcache;
   const tvm::runtime::PackedFunc* _config_threadpool;
@@ -321,6 +282,45 @@ private:
   std::mutex _m;
 
   INIReader _reader;
+
+  tvm::runtime::PackedFunc get_function(_fkey key)
+  {
+    std::lock_guard<std::mutex> lock(_m);
+    auto iter = _fcache.find(key);
+    tvm::runtime::PackedFunc f;
+    if (iter == _fcache.end()) {
+      std::string func_name = get_template_name(key);
+      f = _mod_lib.GetFunction(func_name);
+      ICHECK(f != nullptr) << func_name;
+      _fcache[key] = f;
+      return f;
+    } else {
+      return iter->second;
+    }
+  }
+
+  std::string get_template_name(_fkey key)
+  {
+    if (std::get<4>(key) != 0) {
+      return
+        std::string("qgemm_lut")
+          + "_t" + std::to_string(_n_threads)
+          + "_int8"
+          + "_m" + std::to_string(std::get<0>(key) * std::get<3>(key))
+          + "_k" + std::to_string(std::get<1>(key))
+          + "_n" + std::to_string(std::get<2>(key))
+          + "_b" + std::to_string(std::get<3>(key));
+    } else {
+      return
+        std::string("preprocessor")
+          + "_t" + std::to_string(_n_threads)
+          + "_int8"
+          + "_m" + std::to_string(std::get<0>(key) * std::get<3>(key))
+          + "_k" + std::to_string(std::get<1>(key))
+          + "_n" + std::to_string(std::get<2>(key))
+          + "_b" + std::to_string(std::get<3>(key));
+    }
+  }
 };
 
 } // namespace TMAC

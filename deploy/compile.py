@@ -19,19 +19,19 @@ MKNs = [
     # llama-7b
     # M, K, N, m_groups
     # [12288, 4096, 1, -1],
-    # [4096, 4096, 1, -1],
-    # [11008, 4096, 1, -1],
-    # [4096, 11008, 1, -1],
+    [4096, 4096, 1, -1],
+    [11008, 4096, 1, -1],
+    [4096, 11008, 1, -1],
     # BitNet
     # [12288, 4096, 1, 3],
     # [4096, 4096, 1, 1],
     # [11008, 4096, 1, 1],
     # [4096, 11008, 1, 1],
     # llama-70b
-    [1024, 8192, 1, -1],
-    [8192, 8192, 1, -1],
-    [28672, 8192, 1, -1],
-    [8192, 28672, 1, -1],
+    # [1024, 8192, 1, -1],
+    # [8192, 8192, 1, -1],
+    # [28672, 8192, 1, -1],
+    # [8192, 28672, 1, -1],
 ]
 
 
@@ -93,12 +93,14 @@ def compile(
             qgemm_lut.act_group_size = K
             preprocessor.act_group_size = K
 
+        qgemm_lut.num_threads = FLAGS.num_threads
         qgemm_mod = qgemm_lut.compile(
             M, N, K,
             thread_affinity=FLAGS.thread_affinity,
             return_lower=True,
             **eval_kwargs,
         )
+        qgemm_lut.num_threads = 1 if FLAGS.one_thread_block else FLAGS.num_threads
         template_name = qgemm_lut.get_template_name(M, N, K)
         if FLAGS.one_thread_block:
             # Reuse tuned configs set by the complete M, N, K
