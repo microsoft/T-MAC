@@ -4,37 +4,46 @@ import tvm
 from tvm.autotvm.measure.measure_methods import request_remote
 from t_mac.ops import QGeMMLUTBitsCodegen, QGeMMLUTBitsPreprocessorCodegen
 from t_mac.weights import preprocess_weights
+from t_mac.utils import get_default_device_kwargs
+import logging
 
+
+logging.basicConfig()
+logging.getLogger().setLevel(logging.INFO)
 
 dtype = "int8"
-target = "llvm -mtriple=arm64-apple-darwin23.1.0 -mcpu=apple-m2"
 bits = 4
 g = 4
 group_size = 128
 act_group_size = 64
-num_threads = 16
-out_dtype = "float16"
+
+device_kwargs = get_default_device_kwargs("intel_win")
+
+out_dtype = device_kwargs["out_dtype"]
 
 remote_kwargs = None
 codegen_kwargs = {
+    "save_dir": os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "out"),
     "dtype": dtype,
-    "target": target,
-    "verify": False,
-    "remote_kwargs": remote_kwargs,
-    "g": g,
+    "target": device_kwargs["target"],
+    "verify": True,
+    "tune": False,
+    "remote_kwargs": device_kwargs["remote_kwargs"],
+    "bits": bits,
+    "out_dtype": out_dtype,
     "act_group_size": act_group_size,
-    "save_dir": "/Users/user/jianyu/qgemv_lut/out",
+    "cc_opts": device_kwargs["cc_opts"],
 }
 
-preprocessor = QGeMMLUTBitsPreprocessorCodegen(name="preprocessor", **codegen_kwargs)
-qgemm = QGeMMLUTBitsCodegen(name="qgemm_lut", bits=bits, group_size=group_size, **codegen_kwargs)
+preprocessor = QGeMMLUTBitsPreprocessorCodegen(name="preprocessor", fast_aggregation_k=0, **codegen_kwargs)
+qgemm = QGeMMLUTBitsCodegen(name="qgemm_lut", group_size=group_size, **codegen_kwargs)
 
 M = 4096 * bits
 N = 1
 K = 4096
 
-pf, arrays = preprocessor.compile(N, K, num_threads=num_threads)
-qf, _ = qgemm.compile(M, N, K, num_threads=num_threads)
+pf, _ = preprocessor.compile(N, K)
+qf, _ = qgemm.compile(M, N, K)
 
 bm = qgemm.bm
 kfactor = qgemm.kfactor
@@ -46,14 +55,14 @@ Sref = np.abs(np.random.randn(M // bits, K // group_size).astype(out_dtype))
 Bref = np.random.randn(N, K).astype(out_dtype)
 
 # Outputs
-Adq = Aref.T.reshape(K // group_size, group_size, M // bits).astype("float16") - 8
+Adq = Aref.T.reshape(K // group_size, group_size, M // bits).astype(out_dtype) - 8
 Adq = (Adq.transpose(1, 0, 2) * Sref.T).transpose(1, 0, 2).reshape(K, M // bits)
 Cref = Bref.dot(Adq)
 print(Cref)
 
 dev = tvm.device("llvm")
 # TVM Inputs
-A_t, Scales_t = preprocess_weights(Aref, Sref, bm=bm, kfactor=kfactor)
+A_t, Scales_t = preprocess_weights(Aref, Sref, bits=bits, g=g, bm=bm, kfactor=kfactor)
 A_t = tvm.nd.array(A_t, dev)
 B_t = tvm.nd.array(Bref, dev)
 Scales_t = tvm.nd.array(Scales_t, dev)

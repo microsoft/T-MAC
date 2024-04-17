@@ -23,7 +23,7 @@ Our method exhibits several notable characteristics:
 
 Our kernels demonstrate superior performance over SOTA low-bit GeMM on CPU. Due to the linear scaling characteristic of T-MAC, our kernels deliver improved results at 2 bits, even surpassing the performance of Metal GPUs.
 
-The following table shows the speedup on M2-Ultra compared to llama.cpp for llama-7b kernels during token generation:
+The following table shows the speedup on M2-Ultra compared to llama.cpp for llama-7b kernels during token generation (NUM_THREADS=16):
 
 | Bits | M     | N | K     | T-MAC (CPU) (ms) | llama.cpp (CPU) | llama.cpp (METAL GPU) |
 |------|-------|---|-------|-------------|-----------------|-------------------|
@@ -37,6 +37,17 @@ The following table shows the speedup on M2-Ultra compared to llama.cpp for llam
 | 2    | 11008 | 1 | 4096  | 0.029 | 0.105         | 0.035           |
 | 2    | 4096  | 1 | 11008 | 0.028    | 0.116         | 0.037           |
 
+## E2E Speedup to llama.cpp
+
+By integrating T-MAC kernels to llama.cpp, we obtain the following table to show the speedup on M2-Ultra for llama-7b duing token generation (NUM_THREADS=1):
+
+| Bits | T-MAC (CPU) (tokens/sec) | llama.cpp (CPU) |
+|------|--------------------------|-----------------|
+| 4    | 7.80                     | 5.56            |
+| 2    | 16.17                    | 3.63            |
+
+*We will release multi-threading performance soon.*
+
 ## Cite
 If you find this repository useful, please use the following BibTeX entry for citation.
 ```
@@ -48,35 +59,76 @@ If you find this repository useful, please use the following BibTeX entry for ci
 }
 ```
 
-
 ## Usage
 
-We currently supports mainstream int4 quantization (e.g., GGUF, GPTQ) on ARM CPU (e.g., M1/M2 Mac, Snapdragon CPUs).
+We currently supports mainstream int4 quantization (e.g., GGUF, GPTQ) on ARM CPU (e.g., M1/M2 Mac, Snapdragon CPUs) and Intel CPU (with AVX2).
 
 ### Requirements
 
 This project used TVM for kernel code-generation and auto-tuning.
 
 - tvm
+- llvm
 - tvm-rpc: If you want to tune the kernels yourself on M1/M2 Mac or Android instead of provided tuned configurations, please setup tvm-rpc following [the official documentation](https://github.com/apache/tvm/tree/main/apps/cpp_rpc).
 
 ### Installation
 
-Install this project from source with `pip install -e .`.
+Install this project from source with:
 
-### From Python
+```
+git clone --recursive https://github.com/microsoft/T-MAC.git
+cd T-MAC
+pip install -e .
+```
 
-Compared to normal GeMM, the weights need to be first offline preprocessed. Please refer to [the E2E inference example](./tests/test_e2e.py).
+### Integration into llama.cpp (exprimental)
 
-### From C++
+Currently, we have integrated T-MAC into llama.cpp on windows/linux/osx.
 
-We provide a wrapper for TMAC-GeMM. Please refer to [benchmark](./deploy/benchmark.cc) for usage.
+First, compile T-MAC kernels with.
+
+```bash
+cd deploy
+python compile.py -t -o tuned -da -d m2 -b 4 -nt 1
+```
+
+Then, build T-MAC with:
+
+```bash
+cd ..
+mkdir build
+cd build
+cmake -DCMAKE_INSTALL_PREFIX=${TMAC_PROJECT_DIR}/install ..
+cmake --build . --target install --config Release
+```
+
+After that, build llama.cpp with T-MAC:
+
+```bash
+cd ../3rdparty/llama.cpp
+mkdir build
+cd build
+cmake .. -DLLAMA_TMAC=ON -DCMAKE_PREFIX_PATH=${TMAC_PROJECT_DIR}/install/lib/cmake/t-mac -DCMAKE_BUILD_TYPE=Release -DLLAMA_TMAC_TVM_THREADPOOL=ON
+cmake --build . --config Release --target llama-bench
+```
+
+Evaluate token-generation throughput with:
+
+```bash
+./bin/llama-bench -m ${MODEL_DIR}/llama-2-7b-chat.Q4_0.gguf -n 128 -ngl 0 -b 1 -t 1 -p 0
+```
+
+#### Issues
+
+- We are working on resolving conflicts between TVM threadpool and llama.cpp threadpool. The current multi-threading performance is suboptimal.
+
+- We are converting 2-bit models to support correct token generation for 2bit.
 
 ## TODO List
 
+- [ ] Pre-built release
 - [ ] E2E inference integration into llama.cpp
-- [ ] GGUF Q2_K/Q3_K support
-- [ ] Build scripts
-- [ ] Intel CPU support
+- [x] BitNet kernel support
+- [ ] BitNet E2E integration
+- [x] Intel CPU support
 - [ ] Release performance data for more devices
-
