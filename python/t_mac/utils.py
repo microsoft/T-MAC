@@ -9,14 +9,15 @@ def get_default_device_kwargs(device: str):
                 "number": 1000,
                 "repeat": 100,
             },
-            "remote_kwargs": {
-                "key": "local",
-                "host": os.environ["TVM_TRACKER_HOST"],
-                "port": int(os.environ["TVM_TRACKER_PORT"]),
-                "build_func": "default",
-                "timeout": 600,
-            },
-            "cc_opts": None,
+            # "remote_kwargs": {
+            #     "key": "local",
+            #     "host": os.environ["TVM_TRACKER_HOST"],
+            #     "port": int(os.environ["TVM_TRACKER_PORT"]),
+            #     "build_func": "default",
+            #     "timeout": 600,
+            # },
+            "remote_kwargs": None,
+            "cc_opts": ["-O3", "-std=c++17", "-mcpu=apple-m2"],
             "out_dtype": "float16",
         }
     elif device == "android":

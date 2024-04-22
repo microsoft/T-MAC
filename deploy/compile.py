@@ -4,7 +4,7 @@ from t_mac.utils import get_default_device_kwargs
 import logging
 import os
 import argparse
-from typing import Optional
+from typing import Optional, Union
 import configparser
 
 import tvm
@@ -32,6 +32,10 @@ MKNs = [
     # [8192, 8192, 1, -1],
     # [28672, 8192, 1, -1],
     # [8192, 28672, 1, -1],
+    # BitNet 3B
+    # [3200, 3200, 1, -1],
+    # [8640, 3200, 1, -1],
+    # [3200, 8640, 1, -1],
 ]
 
 
@@ -66,14 +70,18 @@ def compile(
         "num_threads": 1 if FLAGS.one_thread_block else FLAGS.num_threads,
     }
 
-    def insert(all: tvm.IRModule, new: tvm.IRModule):
+    def insert(all: Union[tvm.IRModule, str], new: Union[tvm.IRModule, str]):
         if all is None:
             return new
-        else:
+        elif isinstance(all, tvm.IRModule):
             all.update(new)
             return all
+        elif isinstance(all, str):
+            return all + "\n" + new
 
+    return_type = "lower" if not FLAGS.gen_c_code else "c"
     mod = None
+    body_code = ""
     qgemm_lut = QGeMMLUTBitsCodegen(
         name="qgemm_lut",
         group_size=FLAGS.group_size,
@@ -97,7 +105,7 @@ def compile(
         qgemm_mod = qgemm_lut.compile(
             M, N, K,
             thread_affinity=FLAGS.thread_affinity,
-            return_lower=True,
+            return_type=return_type,
             **eval_kwargs,
         )
         qgemm_lut.num_threads = 1 if FLAGS.one_thread_block else FLAGS.num_threads
@@ -109,10 +117,11 @@ def compile(
             qgemm_mod = qgemm_lut.compile(
                 qgemm_lut.bm, N, K,
                 thread_affinity=FLAGS.thread_affinity,
-                return_lower=True,
+                return_type=return_type,
                 preserve_cfg=True,
                 **eval_kwargs,
             )
+        body_code += qgemm_lut.extra_cc_body
         mod = insert(mod, qgemm_mod)
         # Write kcfg
         config[template_name] = {
@@ -138,19 +147,24 @@ def compile(
         mod = insert(mod, preprocessor.compile(
             N, K,
             thread_affinity=FLAGS.thread_affinity,
-            return_lower=True,
+            return_type=return_type,
             **eval_kwargs,
         ))
+        body_code += preprocessor.extra_cc_body
 
-    with tvm.transform.PassContext(config={"tir.disable_assert": FLAGS.disable_assert}):
-        with tvm.target.Target(target, host=target_host):
-            syslib = tvm.build(
-                mod,
-                runtime=relay.backend.Runtime("cpp", {"system-lib": True}),
-            )
-            syslib.save(os.path.join(FLAGS.out_path, "kernels.o"))
-            dylib = tvm.build(mod)
-            dylib.export_library(os.path.join(FLAGS.out_path, "kernels.dll"))
+    if return_type == "lower":
+        with tvm.transform.PassContext(config={"tir.disable_assert": FLAGS.disable_assert}):
+            with tvm.target.Target(target, host=target_host):
+                syslib = tvm.build(
+                    mod,
+                    runtime=relay.backend.Runtime("cpp", {"system-lib": True}),
+                )
+                syslib.save(os.path.join(FLAGS.out_path, "kernels.o"))
+                dylib = tvm.build(mod)
+                dylib.export_library(os.path.join(FLAGS.out_path, "kernels.dll"))
+    else:
+        with open(os.path.join(FLAGS.out_path, "kernels.cc"), "w") as f:
+            f.write(qgemm_lut.extra_cc_header + preprocessor.extra_cc_header + body_code + mod)
 
     with open(os.path.join(FLAGS.out_path, "kcfg.ini"), "w") as f:
         config.write(f)
@@ -166,6 +180,7 @@ def parse_args():
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("-b", "--bits", type=int, default=2)
     parser.add_argument("-tb", "--one_thread_block", action="store_true")
+    parser.add_argument("-gc", "--gen_c_code", action="store_true")
     parser.add_argument("-da", "--disable_assert", action="store_true")
 
     parser.add_argument("-nt", "--num_threads", type=int, default=16)  # 16 big cores for M2-ultra

@@ -192,7 +192,7 @@ class QGeMMLUTBitsCodegen(OpCodegen):
         koC, kiC = sch[CBits].split(kC, factor=self.kfactor)
         sch[CBits].reorder(koC, nC, kiC, mC)
 
-        intrin, ll_code = tbl(
+        intrin, ll_code, header_code, body_code = tbl(
             self.bm,
             self.kfactor,
             self.g,
@@ -210,6 +210,8 @@ class QGeMMLUTBitsCodegen(OpCodegen):
             aggregation_dtype=self.aggregation_dtype,
             fast_aggregation=self.fast_aggregation,
         )
+        self.extra_cc_header = header_code
+        self.extra_cc_body = body_code
         sch[CBits].tensorize(kiC, intrin)
         sch[CBits].pragma(koC, "import_llvm", ll_code)
 
@@ -357,7 +359,7 @@ class QGeMMLUTBitsPreprocessorCodegen(OpCodegen):
         skko, skki = sch[LUT_Scales].split(skk, factor=1)
         sko, ski = sch[LUT_Scales].split(sk, factor=8)
         sch[LUT_Scales].reorder(sn, skko, sko, skki, ski)
-        intrin, ll_code = partial_max(
+        intrin, ll_code, _, _ = partial_max(
             self.g,
             self.dtype,
             cc=self.cc,
@@ -369,7 +371,7 @@ class QGeMMLUTBitsPreprocessorCodegen(OpCodegen):
 
         n, k, g = sch[QLUT].op.axis
         ko, ki = sch[QLUT].split(k, factor=self.kfactor)
-        intrin, ll_code = lut_ctor(
+        intrin, ll_code, header_code, body_code = lut_ctor(
             self.kfactor * 4,
             self.g,
             self.act_group_size,
@@ -380,6 +382,8 @@ class QGeMMLUTBitsPreprocessorCodegen(OpCodegen):
             out_dtype=self.out_dtype,
             fast_aggregation_k=self.fast_aggregation_k,
         )
+        self.extra_cc_header = header_code
+        self.extra_cc_body = body_code
         sch[QLUT].tensorize(ki, intrin)
         sch[QLUT].pragma(ko, "import_llvm", ll_code)
 

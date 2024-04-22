@@ -4,6 +4,7 @@ import os
 from tvm.contrib import utils, clang
 from typing import Tuple, Optional
 from ..utils import get_bits_alphas
+from .utils import _create_llvm
 
 
 def tbl(
@@ -23,7 +24,7 @@ def tbl(
     do_scale_final: bool = False,
     aggregation_dtype: str = "int32",
     fast_aggregation: bool = False,
-) -> Tuple[tvm.tir.TensorIntrin, str]:
+) -> Tuple[tvm.tir.TensorIntrin, str, str, str]:
     """Create a table lookup intrinsics for a given table size and bitwidth,
     weights should be within the same group.
     """
@@ -153,18 +154,7 @@ def tbl(
         return _body(), _reduce_reset(), _reduce_update()
 
     body_code = "tbl_g{}_{}_{}_update({}, {}, {}, {}, {})".format(*api_args)
-    with open(os.path.join(os.path.dirname(__file__), "tbl.cc"), "r") as fp:
-        cc_code = fp.read().replace("//<body></body>", body_code)
-
-    temp = utils.tempdir()
-    ll_path = temp.relpath("tbl.ll")
-    cc_opts = (cc_opts or []) + ["-I" + os.path.dirname(__file__)]
-    ll_code = clang.create_llvm(
-        cc_code,
-        output=ll_path,
-        options=cc_opts,
-        cc=cc,
-    )
+    ll_code, header_code, body_code = _create_llvm("tbl.cc", body_code, cc, cc_opts)
 
     buffer_params = {"offset_factor": 1}
     binds = {LUT: lut_buffer, A: a_buffer, C: c_buffer}
@@ -180,5 +170,7 @@ def tbl(
             binds=binds,
             default_buffer_params=buffer_params,
         ),
-        ll_code
+        ll_code,
+        header_code,
+        body_code,
     )

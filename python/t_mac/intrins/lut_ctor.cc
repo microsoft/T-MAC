@@ -1,12 +1,26 @@
-#include <algorithm>
+#pragma once
+
 #ifdef __ARM_NEON
 #include <arm_neon.h>
+#elif defined __AVX2__
+#include <immintrin.h>
+#endif
 
+#ifdef __ARM_NEON
+typedef float16_t float_type;
+typedef float16_t half;
+#else
+#include <stdint.h>
+typedef float float_type;
+typedef uint16_t half;
+#endif
+
+#include <algorithm>
+
+#ifdef __ARM_NEON
 #define vaddvq_f16(v) \
     ((v)[0] + (v)[1] + (v)[2] + (v)[3] + (v)[4] + (v)[5] + (v)[6] + (v)[7])
 #elif defined __AVX2__
-#include <immintrin.h>
-
 static inline float _mm256_addv_ps(const __m256 v) {
     __m128 res = _mm256_extractf128_ps(v, 1);
     res = _mm_add_ps(res, _mm256_castps256_ps128(v));
@@ -15,9 +29,6 @@ static inline float _mm256_addv_ps(const __m256 v) {
     return _mm_cvtss_f32(res);
 }
 #endif
-
-#include "types.h"
-
 
 template <int K>
 struct mylog2 {
@@ -57,7 +68,7 @@ constexpr int get_bias_scale(int bits) {
 // FastAggregationK = 0 to disable FastAggregation
 // TODO: loop K
 template <int FastAggregationK = 16, int Bits = 4>
-int32_t lut_ctor_g4_int8_impl(int32_t act_k, int8_t* qlut, float_type* b, float_type* lut_scales, float_type* lut_biases) {
+inline int32_t lut_ctor_g4_int8_impl(int32_t act_k, int8_t* qlut, float_type* b, float_type* lut_scales, float_type* lut_biases) {
 #ifdef __ARM_NEON
     float16x8_t vec_lut[16];
     float16_t biases = 0.0;
@@ -92,6 +103,7 @@ int32_t lut_ctor_g4_int8_impl(int32_t act_k, int8_t* qlut, float_type* b, float_
         }
 
         biases += vaddvq_f16(vec_lut[0]);
+#undef vaddvq_f16
 
 #pragma unroll
         for (int g = 0; g < 16; ++g) {
@@ -254,8 +266,6 @@ int32_t lut_ctor_g4_int8_impl(int32_t act_k, int8_t* qlut, float_type* b, float_
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-//<body></body>
 
 int32_t partial_max_g4_int8_k8(float_type* lut_scales, float_type* b) {
 #ifdef __ARM_NEON

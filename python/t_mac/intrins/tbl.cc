@@ -1,11 +1,20 @@
-#include <string.h>
+#pragma once
+
 #ifdef __ARM_NEON
 #include <arm_neon.h>
 #elif defined __AVX2__
 #include <immintrin.h>
 #endif
 
-#include "types.h"
+#ifdef __ARM_NEON
+typedef float16_t float_type;
+typedef float16_t half;
+#else
+#include <stdint.h>
+typedef float float_type;
+typedef uint16_t half;
+#endif
+#include "string.h"
 #include <type_traits>
 
 template <bool has_scale, int K, int Bits>
@@ -382,6 +391,7 @@ inline int32_t tbl_g4_int8_float_update_impl(int32_t m, float_type* c, int8_t* l
                 vec_c2 = _mm256_add_ps(vec_c2, lut_fma(vec_v_high_low,  (i / 4 + 2)));
                 vec_c3 = _mm256_add_ps(vec_c3, lut_fma(vec_v_high_high, (i / 4 + 3)));
             }
+#undef lut_fma
         }
 
         __m256 vec_s0 = _mm256_loadu_ps(scales + ((i / 4    ) / Bits) * 8);
@@ -449,7 +459,6 @@ inline int32_t tbl_g4_int8_int32_update_impl(int32_t m, int32_t* c, int8_t* lut,
     return 0;
 }
 
-// TODO: Add API to toggle FastAggregation
 #define tbl_g4_float_float_update(s, k, b, ak, fa)                                                                                                       \
     int32_t tbl_g4_float_float_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa(int32_t m, float_type* c, float_type* lut, uint8_t* a, float_type* scales) {  \
         return tbl_g4_float_float_update_impl<s, k, b>(m, c, lut, a, scales);                                                                            \
@@ -478,8 +487,6 @@ int32_t tbl_float_reset(int32_t m, float_type* c) {
     memset(c, 0, m * sizeof(float_type));
     return 0;
 }
-
-//<body></body>
 
 #ifdef __cplusplus
 }

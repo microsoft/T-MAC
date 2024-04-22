@@ -3,6 +3,7 @@ from tvm import te
 import os
 from tvm.contrib import utils, clang
 from typing import Tuple, Optional
+from .utils import _create_llvm
 
 
 def lut_ctor(
@@ -15,7 +16,7 @@ def lut_ctor(
     cc_opts: Optional[list] = None,
     out_dtype = "float16",
     fast_aggregation_k: int = 16,
-) -> Tuple[tvm.tir.TensorIntrin, str]:
+) -> Tuple[tvm.tir.TensorIntrin, str, str, str]:
 
     B = te.placeholder((k,), out_dtype, name="B")
     LUT_Scales = te.placeholder((k // act_group_size,), out_dtype, name="LUT_Scales")
@@ -58,18 +59,7 @@ def lut_ctor(
         return ib.get()
 
     body_code = f"lut_ctor({fast_aggregation_k}, {bits})"
-    with open(os.path.join(os.path.dirname(__file__), "lut_ctor.cc"), "r") as fp:
-        cc_code = fp.read().replace("//<body></body>", body_code)
-
-    temp = utils.tempdir()
-    ll_path = temp.relpath("lut_ctor.ll")
-    cc_opts = (cc_opts or []) + ["-I" + os.path.dirname(__file__)]
-    ll_code = clang.create_llvm(
-        cc_code,
-        output=ll_path,
-        options=cc_opts,
-        cc=cc,
-    )
+    ll_code, header_code, body_code = _create_llvm("lut_ctor.cc", body_code, cc, cc_opts)
 
     buffer_params = {"offset_factor": 1}
     binds = {B: b_buffer, LUT_Scales: lut_scales_buffer, LUT_Biases: lut_biases_buffer, QLUT: qlut_buffer}
@@ -80,7 +70,9 @@ def lut_ctor(
             binds=binds,
             default_buffer_params=buffer_params,
         ),
-        ll_code
+        ll_code,
+        header_code,
+        body_code,
     )
 
 
@@ -91,7 +83,7 @@ def partial_max(
     cc: Optional[str] = None,
     cc_opts: Optional[list] = None,
     out_dtype = "float16",
-) -> Tuple[tvm.tir.TensorIntrin, str]:
+) -> Tuple[tvm.tir.TensorIntrin, str, str, str]:
 
     if dtype == "int8":
         maxv = 127
@@ -144,18 +136,7 @@ def partial_max(
 
         return _body(), _reduce_reset(), _reduce_update()
 
-    with open(os.path.join(os.path.dirname(__file__), "lut_ctor.cc"), "r") as fp:
-        cc_code = fp.read()
-
-    temp = utils.tempdir()
-    ll_path = temp.relpath("lut_ctor.ll")
-    cc_opts = (cc_opts or []) + ["-I" + os.path.dirname(__file__)]
-    ll_code = clang.create_llvm(
-        cc_code,
-        output=ll_path,
-        options=cc_opts,
-        cc=cc,
-    )
+    ll_code, header_code, _ = _create_llvm("lut_ctor.cc", "", cc, cc_opts)
 
     buffer_params = {"offset_factor": 1}
     binds = {LUT_Scales: lut_scales_buffer, B: b_buffer}
@@ -166,5 +147,7 @@ def partial_max(
             binds=binds,
             default_buffer_params=buffer_params,
         ),
-        ll_code
+        ll_code,
+        header_code,
+        "",
     )

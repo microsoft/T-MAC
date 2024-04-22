@@ -6,11 +6,12 @@ from tvm.autotvm.measure.measure_methods import request_remote, default_module_l
 from tvm._ffi import get_global_func
 import numpy as np
 
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Literal
 import logging
 import os
 import pathlib
 import gc
+import re
 
 logger = logging.getLogger("ops")
 
@@ -44,6 +45,8 @@ class OpCodegen:
         self.cc = os.environ.get("TVM_NDK_CC", None) if self.build_func == "ndk" else None
         self.cc_opts = cc_opts
         self.num_threads = num_threads
+        self.extra_cc_header = ""
+        self.extra_cc_body = ""
 
     def _schedule(self, tensors: List[te.Tensor]):
         raise NotImplementedError
@@ -121,12 +124,93 @@ class OpCodegen:
                 ],
             )
 
+    def _postprocess_tvm_c_code(self, c_code: str, template_name: str):
+        to_removes = [
+            r'#define TVM_EXPORTS',
+            r'#include "tvm/runtime/c_runtime_api.h"',
+            r'#include "tvm/runtime/c_backend_api.h"',
+            r'TVM_DLL',
+        ]
+        for s in to_removes:
+            c_code = c_code.replace(s, "")
+
+        # Remove unrelated function defines
+        # E.g., intrinsics
+        func_dcl_ptn = """#ifdef __cplusplus
+extern "C"
+#endif
+ int32_t (\w+)\(.+\);"""
+        for m in re.finditer(func_dcl_ptn, c_code, re.MULTILINE):
+            if m[1] != template_name:
+                c_code = c_code.replace(m[0], "")
+
+        # Remove __tvm_main__
+        tvm_main_def_ptn = """#ifdef __cplusplus
+extern "C"
+#endif
+ int32_t __tvm_main__\(void\* args, int\* arg_type_ids, int num_args, void\* out_ret_value, int\* out_ret_tcode, void\* resource_handle\) {
+.+
+}
+"""
+        c_code = re.sub(tvm_main_def_ptn, "", c_code, flags=re.MULTILINE)
+
+        # Modify kernel args
+        kernel_dcl_ptn = """#ifdef __cplusplus
+extern "C"
+#endif
+ (int32_t """ + template_name + """\(void\* args, int32_t\* arg_type_ids, int32_t num_args, void\* out_ret_value, int32_t\* out_ret_tcode, void\* resource_handle\)) {
+([\s\S]+)
+}"""
+        kernel_m = re.search(kernel_dcl_ptn, c_code, re.MULTILINE)
+        if not kernel_m:
+            raise RuntimeError("can't find kernel declaration")
+
+        kernel_body = kernel_m[2]
+        # Modify args retrieve
+        args_def_ptn = """(void\* \w+) = \(\(\(TVMValue\*\)args\)\[(\d+)\]\.v_handle\);"""
+        args = []
+        for m in re.finditer(args_def_ptn, kernel_body):
+            if int(m[2]) != len(args):
+                raise RuntimeError("Error parsing line: {}".format(m[0]))
+            args.append(m[1])
+            kernel_body = kernel_body.replace(m[0], "")
+        args_code_ptn = """int32_t \w+_code = arg_type_ids\[\d+\];"""
+        kernel_body = re.sub(args_code_ptn, "", kernel_body)
+
+        # Replace .shape .strides with NULL
+        shape_or_strides_ptr_ptn = """\(\(DLTensor\*\)\w+\)\[0\]\.(?:shape|strides)"""
+        kernel_body = re.sub(shape_or_strides_ptr_ptn, "NULL", kernel_body)
+
+        # Replace .data with args
+        data_ptr_ptn = """\(\(DLTensor\*\)(\w+)\)\[0\]\.data"""
+        kernel_body = re.sub(data_ptr_ptn, r"\1", kernel_body)
+
+        # Replace .device_id with 0
+        dev_id_ptn = """\(\(DLTensor\*\)\w+\)\[0\]\.device\.device_id"""
+        kernel_body = re.sub(dev_id_ptn, "0", kernel_body)
+
+        # Remove TVMBackendFreeWorkspace
+        free_ptn = """TVMBackendFreeWorkspace\(1, dev_id, \w+\)"""
+        kernel_body = re.sub(free_ptn, "0", kernel_body)
+
+        # Replace TVMBackendAllocWorkspace with stack array
+        alloc_ptn = """void\* (\w+) = TVMBackendAllocWorkspace\(1, dev_id, \(uint64_t\)(\d+), \d+, \d+\)"""
+        for m in re.finditer(alloc_ptn, kernel_body):
+            stm, var_name, alloc_size = m[0], m[1], m[2]
+            new_stm = f"uint64_t* temp_{var_name}[{(int(alloc_size) + 7) // 8}]; void* {var_name} = (void*)temp_{var_name}"
+            kernel_body = kernel_body.replace(stm, new_stm)
+
+        c_code = c_code.replace(kernel_m[1], "int32_t {}({})".format(template_name, ", ".join(args)))
+        c_code = c_code.replace(kernel_m[2], kernel_body)
+
+        return c_code
+
     def compile(
         self,
         *args,
         n_trial: int = 1000,
         thread_affinity: int = 1,
-        return_lower: bool = False,
+        return_type: Literal["mod", "lower", "c"] = "mod",
         preserve_cfg: bool = False,
         **eval_kwargs,
     ):
@@ -150,14 +234,21 @@ class OpCodegen:
             s = self._schedule(tensors)
 
             logger.info(tvm.lower(s, tensors, simple_mode=True))
-            if return_lower:
-                return tvm.lower(s, tensors, name=template_name)
 
-            func = tvm.build(s, tensors, name=self.name)
+            func = tvm.build(s, tensors, name=template_name)
             if self.target.kind.name == "llvm":
                 func.save(os.path.join(self.save_path, "src.S"), "s")
+                func.save(os.path.join(self.save_path, "src.ll"), "ll")
             elif self.target.kind.name == "c":
                 func.save(os.path.join(self.save_path, "src.c"), "c")
+
+            if return_type == "c":
+                func_c = tvm.build(s, tensors, target="c", name=template_name)
+                return self._postprocess_tvm_c_code(func_c.get_source(), template_name)
+
+            if return_type == "lower":
+                return tvm.lower(s, tensors, name=template_name)
+
             func_syslib = tvm.build(
                 s,
                 tensors,
@@ -165,6 +256,7 @@ class OpCodegen:
                 runtime=relay.backend.Runtime("cpp", {"system-lib": True}),
             )
             func_syslib.save(os.path.join(self.save_path, f"kernels.o"))
+
             return func, self._reference(*args)
 
     def _verify(self, tvm_arrays: List[tvm.nd.NDArray], arrays: List[np.ndarray]):
