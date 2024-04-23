@@ -4,8 +4,9 @@ from t_mac.utils import get_default_device_kwargs
 import logging
 import os
 import argparse
-from typing import Optional, Union
+from typing import Optional, Union, Tuple
 import configparser
+import re
 
 import tvm
 from tvm import relay
@@ -70,14 +71,36 @@ def compile(
         "num_threads": 1 if FLAGS.one_thread_block else FLAGS.num_threads,
     }
 
-    def insert(all: Union[tvm.IRModule, str], new: Union[tvm.IRModule, str]):
+    wrapper_func_defs = {"qgemm_lut": "", "preprocessor": ""}
+    wrapper_func_calls = {"qgemm_lut": "", "preprocessor": ""}
+    def make_call(kernel_def: str):
+        kernel_def_ptn = r"int32_t (\w+)_t1_int8_m(\d+)_k(\d+)_n(\d+)_b(\d+)"
+        match = re.search(kernel_def_ptn, kernel_def)
+        if not match:
+            raise RuntimeError("Wrong kernel definition: {}".format(kernel_def))
+        name, m, k, n, b = match[1], match[2], match[3], match[4], match[5]
+        ptr_arg_ptn = r"void\* (\w+)"
+        args = [(m[0], m[1]) for m in re.finditer(ptr_arg_ptn, kernel_def)]
+        wrapper_func_defs[name] = "inline int {}_int8(int m, int k, int n, int b, {})".format(
+            name,
+            ", ".join(arg[0] for arg in args)
+        )
+        wrapper_func_call = ", ".join(arg[1] for arg in args)
+        wrapper_func_calls[name] += """
+    if (m == {m} && k == {k} && n == {n} && b == {b}) return {name}_t1_int8_m{m}_k{k}_n{n}_b{b}({wrapper_func_call});
+""".format(m=m, k=k, n=n, b=b, name=name, wrapper_func_call=wrapper_func_call)
+
+    def insert(all: Union[tvm.IRModule, Tuple[str]], new: Union[tvm.IRModule, Tuple[str]]):
+        if isinstance(new, tuple):
+            make_call(new[0])
         if all is None:
             return new
         elif isinstance(all, tvm.IRModule):
             all.update(new)
             return all
-        elif isinstance(all, str):
-            return all + "\n" + new
+        elif isinstance(all, tuple):
+            return (all[0] + "\n" + new[0], all[1] + "\n" + new[1])
+
 
     return_type = "lower" if not FLAGS.gen_c_code else "c"
     mod = None
@@ -121,7 +144,8 @@ def compile(
                 preserve_cfg=True,
                 **eval_kwargs,
             )
-        body_code += qgemm_lut.extra_cc_body
+        if qgemm_lut.extra_cc_body not in body_code:
+            body_code += qgemm_lut.extra_cc_body
         mod = insert(mod, qgemm_mod)
         # Write kcfg
         config[template_name] = {
@@ -150,7 +174,8 @@ def compile(
             return_type=return_type,
             **eval_kwargs,
         ))
-        body_code += preprocessor.extra_cc_body
+        if preprocessor.extra_cc_body not in body_code:
+            body_code += preprocessor.extra_cc_body
 
     if return_type == "lower":
         with tvm.transform.PassContext(config={"tir.disable_assert": FLAGS.disable_assert}):
@@ -163,8 +188,12 @@ def compile(
                 dylib = tvm.build(mod)
                 dylib.export_library(os.path.join(FLAGS.out_path, "kernels.dll"))
     else:
+        with open(os.path.join(FLAGS.out_path, "kernels.h"), "w") as f:
+            wrapper_func = (wrapper_func_defs["qgemm_lut"] + " {\n" + wrapper_func_calls["qgemm_lut"] + "\n    return -1;\n}\n" +
+                            wrapper_func_defs["preprocessor"] + " {\n" + wrapper_func_calls["preprocessor"] + "\n    return -1;\n}\n")
+            f.write('#include "stdint.h"\n' + mod[0] + wrapper_func)
         with open(os.path.join(FLAGS.out_path, "kernels.cc"), "w") as f:
-            f.write(qgemm_lut.extra_cc_header + preprocessor.extra_cc_header + body_code + mod)
+            f.write('#include "t-mac/kernels.h"\n' + qgemm_lut.extra_cc_header + preprocessor.extra_cc_header + body_code + mod[1])
 
     with open(os.path.join(FLAGS.out_path, "kcfg.ini"), "w") as f:
         config.write(f)

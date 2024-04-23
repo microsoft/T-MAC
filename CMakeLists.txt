@@ -47,6 +47,18 @@ find_file(
   HINTS ${KERNEL_DEPLOY_DIR}/tuned/
 )
 
+find_file(
+  kernels_source kernels.cc
+  REQUIRED
+  HINTS ${KERNEL_DEPLOY_DIR}/tuned/
+)
+
+find_file(
+  kernels_header kernels.h
+  REQUIRED
+  HINTS ${KERNEL_DEPLOY_DIR}/tuned/
+)
+
 add_library(kernels_objs OBJECT IMPORTED)
 set_target_properties(
   kernels_objs
@@ -58,7 +70,7 @@ set_target_properties(kernels_static PROPERTIES LINKER_LANGUAGE CXX)
 target_link_libraries(kernels_static PUBLIC tvm_runtime)
 
 set(
-  TMAC_COMPILE_DEFS
+  TMAC_TVM_COMPILE_DEFS
   DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>
 )
 set(
@@ -88,7 +100,8 @@ install(
 
 install(TARGETS kernels_static tvm_runtime LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(DIRECTORY ${TMAC_INCLUDE_DIRS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(FILES ${kernels_header} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/t-mac)
 install(
-  FILES ${tuned_kcfg} ${kernels_OBJECT} ${kernels_LIBRARY}
+  FILES ${tuned_kcfg} ${kernels_OBJECT} ${kernels_LIBRARY} ${kernels_source}
   DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )

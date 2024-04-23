@@ -197,13 +197,22 @@ extern "C"
         alloc_ptn = """void\* (\w+) = TVMBackendAllocWorkspace\(1, dev_id, \(uint64_t\)(\d+), \d+, \d+\)"""
         for m in re.finditer(alloc_ptn, kernel_body):
             stm, var_name, alloc_size = m[0], m[1], m[2]
-            new_stm = f"uint64_t* temp_{var_name}[{(int(alloc_size) + 7) // 8}]; void* {var_name} = (void*)temp_{var_name}"
+            new_stm = f"uint64_t temp_{var_name}[{(int(alloc_size) + 7) // 8}]; void* {var_name} = (void*)temp_{var_name}"
             kernel_body = kernel_body.replace(stm, new_stm)
 
-        c_code = c_code.replace(kernel_m[1], "int32_t {}({})".format(template_name, ", ".join(args)))
+        kernel_args = "int32_t {}({})".format(template_name, ", ".join(args))
+        c_code = c_code.replace(kernel_m[1], kernel_args)
         c_code = c_code.replace(kernel_m[2], kernel_body)
 
-        return c_code
+        # Move kernel def to header
+        kernel_def = """#ifdef __cplusplus
+extern "C"
+#endif
+ """ + kernel_args + ";"
+        c_code = c_code.replace(kernel_def, "")
+        c_header = kernel_def
+
+        return c_header, c_code
 
     def compile(
         self,

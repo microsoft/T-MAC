@@ -1,9 +1,14 @@
 #pragma once
 
+#ifdef TMAC_USE_TVM_THREADPOOL
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+#else
+#include "t-mac/kernels.h"
+#include "dmlc/logging.h"
+#endif
 
 #include <assert.h>
 #include <chrono>
@@ -80,6 +85,7 @@ public:
         _allocated(false),
         _reader(get_kcfg_file(kcfg_file))
   {
+#ifdef TMAC_USE_TVM_THREADPOOL
 #ifdef TMAC_USE_SYSLIB
     _mod_lib = (*tvm::runtime::Registry::Get("runtime.SystemLib"))();
 #else
@@ -88,20 +94,24 @@ public:
 #endif
     _config_threadpool = tvm::runtime::Registry::Get("runtime.config_threadpool");
     set_num_threads(n_threads);
+#endif
   }
 
   TMACGeMMWrapper() : TMACGeMMWrapper(1, 32, "", "") {}
 
   void set_num_threads(int n_threads)
   {
+#ifdef TMAC_USE_TVM_THREADPOOL
     if (n_threads != _n_threads) {
       _n_threads = n_threads;
       (*_config_threadpool)(1, _n_threads);
       int num_threads = (*tvm::runtime::Registry::Get("runtime.NumThreads"))();
       LOG(INFO) << "NUM_THREADS: " << num_threads;
     }
+#endif
   }
 
+#ifdef TMAC_USE_TVM_THREADPOOL
   void run(DLTensor* A, DLTensor* scales, DLTensor* B, DLTensor* C, int M, int K, int N, int bits)
   {
     assert(_allocated);
@@ -155,12 +165,14 @@ public:
     pf(B, &LUTSt, &LUTBt, &QLUTt);
     qf(A, &QLUTt, scales, &LUTSt, &LUTBt, C);
   }
+#endif
 
   // Activation (B): NxK
   // Parallelism is disabled for preprocessor
   // Should only be called in main thread
   void llama_cpp_init(void* B, void* qlut, void* lut_scales, void* lut_biases, int M, int K, int N, int bits)
   {
+#ifdef TMAC_USE_TVM_THREADPOOL
     DLTensor Bt = {
       /* .data = */ B,
     };
@@ -176,6 +188,10 @@ public:
 
     tvm::runtime::PackedFunc pf = get_function({M, K, N, bits, 0});
     pf(&Bt, &LUTSt, &LUTBt, &QLUTt);
+#else
+    int ret = preprocessor_int8(M * bits, K, N, bits, B, lut_scales, lut_biases, qlut);
+    DCHECK(ret == 0) << "error calling preprocessor (m=" << M << ", k=" << K << ", n=" << N << ", b=" << bits << ")";
+#endif
   }
 
   // Activation (B): NxK, Weights (A): MxK
@@ -183,6 +199,7 @@ public:
   // Please split the blocks in llama.cpp and pass the right ptr for scales, A and C
   void llama_cpp_compute(void* A, void* scales, void* qlut, void* lut_scales, void* lut_biases, void* C, int M, int K, int N, int bits)
   {
+#ifdef TMAC_USE_TVM_THREADPOOL
     DLTensor At = {
       /* .data = */ A,
     };
@@ -204,6 +221,10 @@ public:
 
     tvm::runtime::PackedFunc qf = get_function({M, K, N, bits, 1});
     qf(&At, &QLUTt, &St, &LUTSt, &LUTBt, &Ct);
+#else
+    int ret = qgemm_lut_int8(M * bits, K, N, bits, A, qlut, scales, lut_scales, lut_biases, C);
+    DCHECK(ret == 0) << "error calling qgemm_lut (m=" << M << ", k=" << K << ", n=" << N << ", b=" << bits << ")";
+#endif
   }
 
   TMACGeMMConfig get_kcfg(int M, int K, int N, int bits)
@@ -266,22 +287,10 @@ public:
 private:
   using _fkey = std::tuple<int, int, int, int, int>;
 
+#ifdef TMAC_USE_TVM_THREADPOOL
   tvm::runtime::Module _mod_lib;
   std::map<_fkey, tvm::runtime::PackedFunc> _fcache;
   const tvm::runtime::PackedFunc* _config_threadpool;
-
-  int _n_threads;
-  int _act_group_size;
-
-  // workspace ptrs
-  void* _qlut;
-  void* _lut_scales;
-  void* _lut_biases;
-
-  bool _allocated;
-  std::mutex _m;
-
-  INIReader _reader;
 
   tvm::runtime::PackedFunc get_function(_fkey key)
   {
@@ -298,6 +307,20 @@ private:
       return iter->second;
     }
   }
+#endif
+
+  int _n_threads;
+  int _act_group_size;
+
+  // workspace ptrs
+  void* _qlut;
+  void* _lut_scales;
+  void* _lut_biases;
+
+  bool _allocated;
+  std::mutex _m;
+
+  INIReader _reader;
 
   std::string get_template_name(_fkey key)
   {

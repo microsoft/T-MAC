@@ -27,9 +27,15 @@ find_file(
   HINTS ${TMAC_LIB_DIR}
 )
 
-set(TMAC_COMPILE_DEFS @TMAC_COMPILE_DEFS@ TMAC_KCFG_FILE=${tuned_kcfg})
+find_file(
+  kernels_source kernels.cc
+  REQUIRED
+  HINTS ${TMAC_LIB_DIR}
+)
 
-set(TMAC_OBJECT_COMPILE_DEFS ${TMAC_COMPILE_DEFS} TMAC_USE_SYSLIB=1)
+set(TMAC_COMPILE_DEFS TMAC_KCFG_FILE=${tuned_kcfg})
+
+set(TMAC_OBJECT_COMPILE_DEFS ${TMAC_COMPILE_DEFS} TMAC_USE_SYSLIB=1 %TMAC_TVM_COMPILE_DEFS%)
 add_library(t_mac_object OBJECT IMPORTED)
 set_target_properties(
   t_mac_object
@@ -43,7 +49,7 @@ set_target_properties(
     POSITION_INDEPENDENT_CODE ON
 )
 
-set(TMAC_SHARED_COMPILE_DEFS ${TMAC_COMPILE_DEFS} TMAC_KERNELS_LIBRARY=${kernels_LIBRARY})
+set(TMAC_SHARED_COMPILE_DEFS ${TMAC_COMPILE_DEFS} TMAC_KERNELS_LIBRARY=${kernels_LIBRARY} %TMAC_TVM_COMPILE_DEFS)
 add_library(t_mac INTERFACE)
 set_target_properties(
   t_mac
@@ -54,5 +60,16 @@ set_target_properties(
     INTERFACE_COMPILE_FEATURES cxx_std_17
     POSITION_INDEPENDENT_CODE ON
 )
+
+add_library(t_mac_no_tvm INTERFACE)
+set_target_properties(
+  t_mac_no_tvm
+  PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "${TMAC_INCLUDE_DIRS}"
+    INTERFACE_COMPILE_DEFINITIONS "${TMAC_COMPILE_DEFS}"
+    INTERFACE_COMPILE_FEATURES cxx_std_17
+    POSITION_INDEPENDENT_CODE ON
+)
+set(TMAC_KERNELS_SOURCE ${kernels_source})
 
 check_required_components(t_mac)
