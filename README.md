@@ -83,6 +83,43 @@ cd T-MAC
 pip install -e .
 ```
 
+### Integration into llama.cpp (exprimental)
+
+Currently, we have integrated T-MAC into llama.cpp on windows/linux/osx.
+
+First, compile T-MAC kernels with. **Skip this procedure to use prebuilt kernels.cc.**
+
+```bash
+cd deploy
+python compile.py -t -o tuned -da -d m2/intel_win -b 4 -nt 1 -tb -gc
+```
+
+Then, build T-MAC with:
+
+```bash
+cd ..
+mkdir build
+cd build
+cmake -DCMAKE_INSTALL_PREFIX=${TMAC_PROJECT_DIR}/install ..
+cmake --build . --target install --config Release
+```
+
+After that, build llama.cpp with T-MAC:
+
+```bash
+cd ../3rdparty/llama.cpp
+mkdir build
+cd build
+cmake .. -DLLAMA_TMAC=ON -DCMAKE_PREFIX_PATH=${TMAC_PROJECT_DIR}/install/lib/cmake/t-mac -DCMAKE_BUILD_TYPE=Release -DLLAMA_TMAC_TVM_THREADPOOL=OFF
+cmake --build . --config Release --target llama-bench
+```
+
+Evaluate token-generation throughput with:
+
+```bash
+./bin/llama-bench -m ${MODEL_DIR}/llama-2-7b-chat.Q4_0.gguf -n 128 -ngl 0 -b 1 -t 1 -p 0
+```
+
 ## TODO List
 
 - [ ] Pre-built release
