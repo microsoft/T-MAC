@@ -1,4 +1,5 @@
-#pragma once
+#ifndef INTRINSIC_TYPES_H
+#define INTRINSIC_TYPES_H
 
 #ifdef __ARM_NEON
 #include <arm_neon.h>
@@ -8,12 +9,13 @@
 
 #ifdef __ARM_NEON
 typedef float16_t float_type;
-typedef float16_t half;
 #else
 #include <stdint.h>
 typedef float float_type;
-typedef uint16_t half;
 #endif
+
+#endif
+
 #include "string.h"
 #include <type_traits>
 
@@ -460,13 +462,13 @@ inline int32_t tbl_g4_int8_int32_update_impl(int32_t m, int32_t* c, int8_t* lut,
 }
 
 #define tbl_g4_float_float_update(s, k, b, ak, fa)                                                                                                       \
-    int32_t tbl_g4_float_float_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa(int32_t m, float_type* c, float_type* lut, uint8_t* a, float_type* scales) {  \
-        return tbl_g4_float_float_update_impl<s, k, b>(m, c, lut, a, scales);                                                                            \
+    int32_t tbl_g4_float_float_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa(int32_t m, void* c, void* lut, uint8_t* a, void* scales) {  \
+        return tbl_g4_float_float_update_impl<s, k, b>(m, (float_type*)c, (float_type*)lut, a, (float_type*)scales);                                                                            \
     }
 
 #define tbl_g4_int8_float_update(s, k, b, ak, fa)                                                                                                                                                   \
-    int32_t tbl_g4_int8_float_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa(int32_t m, float_type* c, int8_t* lut, uint8_t* a, float_type* scales, float_type* lut_scales, float_type* lut_biases) {  \
-        return tbl_g4_int8_float_update_impl<s, k, b, ak, fa>(m, c, lut, a, scales, lut_scales, lut_biases);                                                                                        \
+    int32_t tbl_g4_int8_float_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa(int32_t m, void* c, int8_t* lut, uint8_t* a, void* scales, void* lut_scales, void* lut_biases) {  \
+        return tbl_g4_int8_float_update_impl<s, k, b, ak, fa>(m, (float_type*)c, lut, a, (float_type*)scales, (float_type*)lut_scales, (float_type*)lut_biases);                                                                                        \
     }
 
 #define tbl_g4_int8_int32_update(s, k, b, ak, fa)                                                                            \
@@ -483,7 +485,7 @@ int32_t tbl_int8_reset(int32_t m, int8_t* c) {
     return 0;
 }
 
-int32_t tbl_float_reset(int32_t m, float_type* c) {
+int32_t tbl_float_reset(int32_t m, void* c) {
     memset(c, 0, m * sizeof(float_type));
     return 0;
 }

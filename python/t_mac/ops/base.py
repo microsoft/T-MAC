@@ -47,6 +47,7 @@ class OpCodegen:
         self.num_threads = num_threads
         self.extra_cc_header = ""
         self.extra_cc_body = ""
+        self._vectorization = True
 
     def _schedule(self, tensors: List[te.Tensor]):
         raise NotImplementedError
@@ -200,6 +201,11 @@ extern "C"
             new_stm = f"uint64_t temp_{var_name}[{(int(alloc_size) + 7) // 8}]; void* {var_name} = (void*)temp_{var_name}"
             kernel_body = kernel_body.replace(stm, new_stm)
 
+        # Add alignas specifier to all stack array
+        stack_array_ptn = r"(\w+ \w+\[\d+\];)"
+        # 32 = 256 / 8
+        kernel_body = re.sub(stack_array_ptn, r"alignas(32) \1", kernel_body)
+
         kernel_args = "int32_t {}({})".format(template_name, ", ".join(args))
         c_code = c_code.replace(kernel_m[1], kernel_args)
         c_code = c_code.replace(kernel_m[2], kernel_body)
@@ -211,6 +217,15 @@ extern "C"
  """ + kernel_args + ";"
         c_code = c_code.replace(kernel_def, "")
         c_header = kernel_def
+
+        # Add half vectorization related
+        half_typedef = """
+#ifndef TMAC_HALF_TYPEDEF_H
+#define TMAC_HALF_TYPEDEF_H
+typedef _Float16 half;
+#endif
+"""
+        c_code = half_typedef + c_code
 
         return c_header, c_code
 
@@ -226,6 +241,8 @@ extern "C"
         template_name = self.get_template_name(*args)
 
         log_path = self.log_path
+
+        self._vectorization = (return_type != "c")
 
         with self.target:
             if not preserve_cfg:

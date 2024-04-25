@@ -215,6 +215,17 @@ class QGeMMLUTBitsCodegen(OpCodegen):
         sch[CBits].tensorize(kiC, intrin)
         sch[CBits].pragma(koC, "import_llvm", ll_code)
 
+        nC, mC = sch[CC].op.axis
+        # 32 for vectorization should be enough
+        moC, miC = sch[CC].split(mC, factor=32)
+        mio, mii = sch[C].split(mi, factor=32)
+        if self._vectorization:
+            sch[CC].vectorize(miC)
+            sch[C].vectorize(mii)
+        else:
+            sch[CC].unroll(miC)
+            sch[C].unroll(mii)
+
         if self.num_threads > 1:
             sch[C].parallel(mo)
 

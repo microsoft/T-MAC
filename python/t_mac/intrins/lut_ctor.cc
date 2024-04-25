@@ -1,4 +1,5 @@
-#pragma once
+#ifndef INTRINSIC_TYPES_H
+#define INTRINSIC_TYPES_H
 
 #ifdef __ARM_NEON
 #include <arm_neon.h>
@@ -8,11 +9,11 @@
 
 #ifdef __ARM_NEON
 typedef float16_t float_type;
-typedef float16_t half;
 #else
 #include <stdint.h>
 typedef float float_type;
-typedef uint16_t half;
+#endif
+
 #endif
 
 #include <algorithm>
@@ -258,16 +259,18 @@ inline int32_t lut_ctor_g4_int8_impl(int32_t act_k, int8_t* qlut, float_type* b,
     return 0;
 }
 
-#define lut_ctor(fak, bits)                                                                                                                  \
-    int32_t lut_ctor_g4_int8_k##fak##_b##bits(int32_t act_k, int8_t* qlut, float_type* b, float_type* lut_scales, float_type* lut_biases) {  \
-        return lut_ctor_g4_int8_impl<fak, bits>(act_k, qlut, b, lut_scales, lut_biases);                                                     \
+#define lut_ctor(fak, bits)                                                                                                      \
+    int32_t lut_ctor_g4_int8_k##fak##_b##bits(int32_t act_k, int8_t* qlut, void* b, void* lut_scales, void* lut_biases) {        \
+        return lut_ctor_g4_int8_impl<fak, bits>(act_k, qlut, (float_type*)b, (float_type*)lut_scales, (float_type*)lut_biases);  \
     }
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t partial_max_g4_int8_k8(float_type* lut_scales, float_type* b) {
+int32_t partial_max_g4_int8_k8(void* lut_scales_, void* b_) {
+    float_type* lut_scales = (float_type*)lut_scales_;
+    float_type* b = (float_type*)b_;
 #ifdef __ARM_NEON
     float16x8x4_t vec_bs = vld4q_f16(b);
     float16x8_t abssum = vabsq_f16(vec_bs.val[0]) + vabsq_f16(vec_bs.val[1]) + vabsq_f16(vec_bs.val[2]) + vabsq_f16(vec_bs.val[3]);
@@ -295,7 +298,8 @@ int32_t partial_max_g4_int8_k8(float_type* lut_scales, float_type* b) {
     return 0;
 }
 
-int32_t partial_max_reset(float_type* lut_scales) {
+int32_t partial_max_reset(void* lut_scales_) {
+    float_type* lut_scales = (float_type*)lut_scales_;
     *lut_scales = 0.0;
     return 0;
 }

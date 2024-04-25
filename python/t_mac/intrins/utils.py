@@ -15,8 +15,8 @@ extern "C" {
 def _create_llvm(header_file, body_code, cc, cc_opts):
     with open(os.path.join(os.path.dirname(__file__), header_file), "r") as fp:
         header_code = fp.read()
-        body_code = _extern_cpp(body_code)
-        cc_code = header_code + body_code
+        body_code_cpp = _extern_cpp(body_code)
+        cc_code = header_code + body_code_cpp
 
     temp = utils.tempdir()
     ll_path = temp.relpath("src.ll")
@@ -27,4 +27,4 @@ def _create_llvm(header_file, body_code, cc, cc_opts):
         cc=cc,
     )
 
-    return ll_code, header_code, body_code
+    return ll_code, header_code, "\n{}\n".format(body_code)
