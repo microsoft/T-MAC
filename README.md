@@ -65,7 +65,9 @@ If you find this repository useful, please use the following BibTeX entry for ci
 
 We currently supports mainstream int4 quantization (e.g., GGUF, GPTQ) on ARM CPU (e.g., M1/M2 Mac, Snapdragon CPUs) and Intel CPU (with AVX2).
 
-### Requirements
+### Requirements (Optional)
+
+**You can skip this section to use generated code.**
 
 This project used TVM for kernel code-generation and auto-tuning.
 
@@ -114,7 +116,7 @@ cmake .. -DLLAMA_TMAC=ON -DCMAKE_PREFIX_PATH=${TMAC_PROJECT_DIR}/install/lib/cma
 cmake --build . --config Release --target llama-bench
 ```
 
-Evaluate token-generation throughput with:
+Get the test model `llama-2-7b-chat-Q4_0.gguf` from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF/tree/main, then evaluate token-generation throughput with:
 
 ```bash
 ./bin/llama-bench -m ${MODEL_DIR}/llama-2-7b-chat.Q4_0.gguf -n 128 -ngl 0 -b 1 -t 1 -p 0
