@@ -73,7 +73,7 @@ def compile(
 
     wrapper_func_defs = {"qgemm_lut": "", "preprocessor": ""}
     wrapper_func_calls = {"qgemm_lut": "", "preprocessor": ""}
-    def make_call(kernel_def: str):
+    def make_call(kernel_def: str) -> bool:
         kernel_def_ptn = r"int32_t (\w+)_t1_int8_m(\d+)_k(\d+)_n(\d+)_b(\d+)"
         match = re.search(kernel_def_ptn, kernel_def)
         if not match:
@@ -86,13 +86,19 @@ def compile(
             ", ".join(arg[0] for arg in args)
         )
         wrapper_func_call = ", ".join(arg[1] for arg in args)
-        wrapper_func_calls[name] += """
+        wrapper_func_call = """
     if (m == {m} && k == {k} && n == {n} && b == {b}) return {name}_t1_int8_m{m}_k{k}_n{n}_b{b}({wrapper_func_call});
 """.format(m=m, k=k, n=n, b=b, name=name, wrapper_func_call=wrapper_func_call)
+        if wrapper_func_call in wrapper_func_calls[name]:
+            return True  # already called
+        wrapper_func_calls[name] += wrapper_func_call
+        return False
+
 
     def insert(all: Union[tvm.IRModule, Tuple[str]], new: Union[tvm.IRModule, Tuple[str]]):
         if isinstance(new, tuple):
-            make_call(new[0])
+            if make_call(new[0]):
+                return all
         if all is None:
             return new
         elif isinstance(all, tvm.IRModule):
