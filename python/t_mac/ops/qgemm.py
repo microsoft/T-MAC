@@ -78,10 +78,9 @@ class QGeMMLUTBitsCodegen(OpCodegen):
             self.do_scale_final = False
         else:
             self.do_scale_final = True
+        self.kfactors = [8, 16]
         if not self.do_scale_final:
-            self.kfactors = [k for k in [8, 16] if k * 4 >= self.act_group_size]
-        else:
-            self.kfactors = [8, 16]
+            self.kfactors = [k for k in self.kfactors if (k * 4 >= self.act_group_size and k * 4 <= self.group_size)]
         self.m_groups = m_groups
         self.aggregation_dtype = aggregation_dtype
         self.fast_aggregation = fast_aggregation
@@ -94,6 +93,10 @@ class QGeMMLUTBitsCodegen(OpCodegen):
 
     def _compute(self, M: int, N: int, K: int):
         bm = self.bm
+        if M % bm != 0:
+            raise ValueError("M({}) must be divisible by bm({})".format(M, bm))
+        if bm % self.bits != 0:
+            raise ValueError("bm({}) must be divisible by bits({})".format(bm, self.bits))
 
         k = te.reduce_axis((0, K // self.g), "k")
 
