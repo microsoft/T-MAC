@@ -163,3 +163,7 @@ cython_debug/
 
 # Project
 out/
+src.S
+src.c
+src.ll
+install/
