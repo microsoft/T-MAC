@@ -93,7 +93,7 @@ First, compile T-MAC kernels with. **Skip this procedure to use prebuilt kernels
 
 ```bash
 cd deploy
-python compile.py -t -o tuned -da -d m2/intel_win -b 4 -nt 1 -tb -gc
+python compile.py -t -o tuned -da -d m2/intel_win -b 4 -nt 1 -tb -gc -gs 32 -ags 32
 ```
 
 Then, build T-MAC with:
