@@ -25,6 +25,7 @@ def profile_codegen(
     out_dtype: str = "float16",
 ):
     M, K, N = MKN
+    m_groups = FLAGS.m_groups
     if target == "opencl" or target == "vulkan":
         target_host = "llvm -mtriple=arm64-linux-android -mattr=+neon"
     else:
@@ -34,39 +35,21 @@ def profile_codegen(
         FLAGS.kernel,
     ]
 
-    if "gemm" in FLAGS.kernel:
-        codegen_kwargs = {
-            "dtype": dtype,
-            "target": target,
-            "save_dir": FLAGS.out_path,
-            "verify": True,
-            "target_host": target_host,
-            "tune": FLAGS.tune,
-            "reuse_tuned": FLAGS.reuse_tuned,
-            "remote_kwargs": remote_kwargs,
-            "bits": bits,
-            "cc_opts": cc_opts,
-            "out_dtype": out_dtype,
-            "num_threads": num_threads,
-        }
-        args = (M, N, K)
-    elif "preprocessor" in FLAGS.kernel:
-        codegen_kwargs = {
-            "dtype": dtype,
-            "target": target,
-            "save_dir": FLAGS.out_path,
-            "verify": True,
-            "target_host": target_host,
-            "tune": FLAGS.tune,
-            "reuse_tuned": FLAGS.reuse_tuned,
-            "remote_kwargs": remote_kwargs,
-            "bits": bits,
-            "cc_opts": cc_opts,
-            "out_dtype": out_dtype,
-            "num_threads": num_threads,
-            "fast_aggregation_k": 0,
-        }
-        args = (N, K)
+    codegen_kwargs = {
+        "dtype": dtype,
+        "target": target,
+        "save_dir": FLAGS.out_path,
+        "verify": False,
+        "target_host": target_host,
+        "tune": FLAGS.tune,
+        "reuse_tuned": FLAGS.reuse_tuned,
+        "remote_kwargs": remote_kwargs,
+        "bits": bits,
+        "cc_opts": cc_opts,
+        "out_dtype": out_dtype,
+        "act_group_size": FLAGS.act_group_size if FLAGS.act_group_size != -1 else K,
+        "num_threads": num_threads,
+    }
 
     if target == "opencl":
         codegen_keys = [k + "_cl" for k in codegen_keys]
@@ -80,10 +63,26 @@ def profile_codegen(
         "preprocessor": QGeMMLUTBitsPreprocessorCodegen,
     }
 
+    args = {
+        "qgemm_lut": (M, N, K),
+        "preprocessor": (N, K),
+    }
+
+    extra_kwargs = {
+        "qgemm_lut": {
+            "group_size": FLAGS.group_size,
+            "fast_aggregation": FLAGS.fast_aggregation,
+            "m_groups": m_groups,
+        },
+        "preprocessor": {
+            "M": M,
+        },
+    }
+
     def _eval(codegen_key):
-        codegen = codegen_cls[codegen_key](name=codegen_key, **codegen_kwargs)
+        codegen = codegen_cls[codegen_key](name=codegen_key, **codegen_kwargs, **extra_kwargs[codegen_key])
         return 1000 * codegen.evaluate(
-            *args,
+            *args[codegen_key],
             thread_affinity=FLAGS.thread_affinity,
             **eval_kwargs,
         )
@@ -104,7 +103,11 @@ def parse_args():
     parser.add_argument("-t", "--tune", action="store_true")
     parser.add_argument("-r", "--reuse_tuned", action="store_true")
     parser.add_argument("-v", "--verbose", action="store_true")
-    parser.add_argument("-b", "--bits", type=int, default=2)
+    parser.add_argument("-mg", "--m_groups", type=int, default=-1)
+
+    parser.add_argument("-gs", "--group_size", type=int, default=128)
+    parser.add_argument("-ags", "--act_group_size", type=int, default=64, help="-1 for BitNet-like unified scale")
+    parser.add_argument("-fa", "--fast_aggregation", action="store_true")
     return parser.parse_args()
 
 
@@ -113,7 +116,7 @@ def main():
         # (8192, 16384, 1),
         # (8192, 16384, 32),
         # [12288, 4096, 1],
-        [4096, 4096, 1],
+        # [4096, 4096, 1],
         # [11008, 4096, 1],
         # [4096, 11008, 1],
         # [12288, 4096, 16],
@@ -122,14 +125,23 @@ def main():
         # [4096, 11008, 16],
         # [4096, 4096, 1],
         # [128, 128, 1],
+        # [12288, 4096, 1, -1],
+        # [4096, 4096, 1],
+        # [11008, 4096, 1],
+        # [4096, 11008, 1],
+        # llama-70b
+        [1024, 8192, 1],
+        # [8192, 8192, 1],
+        # [28672, 8192, 1],
+        # [8192, 28672, 1],
     ]
 
     threads = [
+        16,
         1,
-        # 2,
-        # 4,
         # 8,
-        # 16,
+        4,
+        2,
     ]
 
     dtypes = [
@@ -137,39 +149,46 @@ def main():
         # "float16",
     ]
     header = True
-    bits = FLAGS.bits
+    bitss = [
+        1,
+        2,
+        3,
+        4,
+    ]
 
     device_kwargs = t_mac.utils.get_default_device_kwargs(FLAGS.device)
 
     for MKN in MKNs:
-        for num_threads in threads:
-            for dtype in dtypes:
-                results = {
-                    "M": MKN[0],
-                    "K": MKN[1],
-                    "N": MKN[2],
-                    "num_threads": num_threads,
-                    "dtype": dtype,
-                }
-                _MKN = [MKN[0] * bits, MKN[1], MKN[2]]
-                results.update(
-                    profile_codegen(
-                        _MKN, bits, num_threads,
-                        dtype=dtype,
-                        **device_kwargs,
+        for dtype in dtypes:
+            for bits in bitss:
+                for num_threads in threads:
+                    results = {
+                        "M": MKN[0],
+                        "K": MKN[1],
+                        "N": MKN[2],
+                        "bits": bits,
+                        "num_threads": num_threads,
+                        "dtype": dtype,
+                    }
+                    _MKN = [MKN[0] * bits, MKN[1], MKN[2]]
+                    results.update(
+                        profile_codegen(
+                            _MKN, bits, num_threads,
+                            dtype=dtype,
+                            **device_kwargs,
+                        )
                     )
-                )
-                logger.info(results)
+                    logger.info(results)
 
-                pd.DataFrame([results]).to_csv(
-                    os.path.join(FLAGS.out_path, "results.csv"),
-                    mode="a",
-                    header=header,
-                    index=False,
-                )
-                header = False
+                    pd.DataFrame([results]).to_csv(
+                        os.path.join(FLAGS.out_path, "results.csv"),
+                        mode="a",
+                        header=header,
+                        index=False,
+                    )
+                    header = False
 
-                gc.collect()
+                    gc.collect()
 
 
 if __name__ == "__main__":

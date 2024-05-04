@@ -6,17 +6,18 @@ def get_default_device_kwargs(device: str):
         return {
             "target": "llvm -mtriple=arm64-apple-darwin23.1.0 -mcpu=apple-m2",
             "eval_kwargs": {
-                "number": 1000,
+                "number": 100,
+                "min_repeat_ms": 50,
                 "repeat": 100,
             },
-            # "remote_kwargs": {
-            #     "key": "local",
-            #     "host": os.environ["TVM_TRACKER_HOST"],
-            #     "port": int(os.environ["TVM_TRACKER_PORT"]),
-            #     "build_func": "default",
-            #     "timeout": 600,
-            # },
-            "remote_kwargs": None,
+            "remote_kwargs": {
+                "key": "local",
+                "host": os.environ["TVM_TRACKER_HOST"],
+                "port": int(os.environ["TVM_TRACKER_PORT"]),
+                "build_func": "default",
+                "timeout": 600,
+            },
+            # "remote_kwargs": None,
             "cc_opts": ["-O3", "-std=c++17", "-mcpu=apple-m2"],
             "out_dtype": "float16",
         }

@@ -5,6 +5,7 @@ import tvm.testing
 import numpy as np
 from ..intrins import tbl, lut_ctor, partial_max
 from ..utils import get_bits_alphas
+from tvm.error import TVMError
 
 from typing import List
 import os
@@ -84,9 +85,13 @@ class QGeMMLUTBitsCodegen(OpCodegen):
         self.m_groups = m_groups
         self.aggregation_dtype = aggregation_dtype
         self.fast_aggregation = fast_aggregation
+        if self.bits == 3:
+            self.bms = [192, 384, 576, 768]
+        else:
+            self.bms = [256, 128, 512, 1024]
 
     def _define_config(self, cfg):
-        cfg.define_knob("bm", [256, 128, 512, 1024])
+        cfg.define_knob("bm", self.bms)
         cfg.define_knob("bn", [32])
         cfg.define_knob("kfactor", self.kfactors)
         super()._define_config(cfg)
@@ -94,9 +99,9 @@ class QGeMMLUTBitsCodegen(OpCodegen):
     def _compute(self, M: int, N: int, K: int):
         bm = self.bm
         if M % bm != 0:
-            raise ValueError("M({}) must be divisible by bm({})".format(M, bm))
+            raise TVMError("M({}) must be divisible by bm({})".format(M, bm))
         if bm % self.bits != 0:
-            raise ValueError("bm({}) must be divisible by bits({})".format(bm, self.bits))
+            raise TVMError("bm({}) must be divisible by bits({})".format(bm, self.bits))
 
         k = te.reduce_axis((0, K // self.g), "k")
 

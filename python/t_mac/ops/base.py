@@ -296,7 +296,6 @@ typedef _Float16 half;
     ):
         func, arrays = self.compile(
             *args,
-            num_threads=self.num_threads,
             thread_affinity=thread_affinity,
             **eval_kwargs,
         )
