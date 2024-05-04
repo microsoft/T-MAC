@@ -37,18 +37,31 @@ The following table shows the speedup on M2-Ultra compared to llama.cpp for llam
 | 2    | 11008 | 1 | 4096  | 0.029 | 0.105         | 0.035           |
 | 2    | 4096  | 1 | 11008 | 0.028    | 0.116         | 0.037           |
 
+![](assets/gemm.png)
+
 ## E2E Speedup to llama.cpp
 
 By integrating T-MAC kernels to llama.cpp, we obtain the following table to show the speedup on M2-Ultra for llama-7b duing token generation (NUM_THREADS=1):
 
 | Model      | Bits | T-MAC (CPU) (tokens/sec) | llama.cpp (CPU) |
 |------------|------|--------------------------|-----------------|
-| llama-2-7b | 4    | 7.80                     | 5.56            |
+| llama-2-7b | 4    | 7.01                     | 5.56            |
 | llama-2-7b | 2    | 16.17                    | 3.63            |
 |            |      |                          |                 |
 | BitNet-3b  | 2    | 24.36                    | 7.38            |
 
-*We will release multi-threading performance soon.*
+We also profile multi-threading performance for llama-2-7b and llama-2-70b:
+
+| Model       | Bits | threads | T-MAC (CPU) (tokens/sec) | llama.cpp (CPU) |
+|-------------|------|---------|--------------------------|-----------------|
+| llama-2-7b  | 4 | 1 | 7.01  | 5.63  |
+| llama-2-7b  | 4 | 2 | 13.16 | 10.23 |
+| llama-2-7b  | 4 | 4 | 23.42 | 19.73 |
+| llama-2-7b  | 4 | 8 | 35.12 | 31.75 |
+|             |   |   |       |       |
+| llama-2-70b | 2 | 1  | 1.39	| 0.35 |
+| llama-2-70b | 2 | 8  | 5.78	| 2.39 |
+| llama-2-70b | 2 | 16 | 9.07	| 4.21 |
 
 ## Cite
 If you find this repository useful, please use the following BibTeX entry for citation.
@@ -124,8 +137,9 @@ Get the test model `llama-2-7b-chat-Q4_0.gguf` from https://huggingface.co/TheBl
 
 ## TODO List
 
-- [ ] Pre-built release
-- [ ] Add llama.cpp build instructions
+- [ ] Add demo gif to demonstrate e2e speedup
+- [x] Pre-built release
+- [x] Add llama.cpp build instructions
 - [x] BitNet kernel support
 - [ ] BitNet E2E integration
 - [x] Intel CPU support
