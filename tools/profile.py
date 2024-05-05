@@ -96,7 +96,7 @@ def profile_codegen(
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-o", "--out_path", type=str, default="out")
-    parser.add_argument("-d", "--device", type=str, choices=["m2", "android", "intel_win"], default="m2")
+    parser.add_argument("-d", "--device", type=str, choices=t_mac.utils.get_devices(), default="m2")
     parser.add_argument("-tgt", "--target", type=str, choices=["llvm", "opencl", "vulkan"], default="llvm")
     parser.add_argument("-ta", "--thread_affinity", type=int, default=1)
     parser.add_argument("-k", "--kernel", type=str, choices=["qgemm_lut", "preprocessor"], default="qgemm_lut")
@@ -126,20 +126,21 @@ def main():
         # [4096, 4096, 1],
         # [128, 128, 1],
         # [12288, 4096, 1, -1],
-        # [4096, 4096, 1],
-        # [11008, 4096, 1],
-        # [4096, 11008, 1],
+        [4096, 4096, 1],
+        [11008, 4096, 1],
+        [4096, 11008, 1],
         # llama-70b
         [1024, 8192, 1],
-        # [8192, 8192, 1],
-        # [28672, 8192, 1],
-        # [8192, 28672, 1],
+        [8192, 8192, 1],
+        [28672, 8192, 1],
+        [8192, 28672, 1],
     ]
 
     threads = [
-        16,
+        # 16,
         1,
-        # 8,
+        8,
+        12,
         4,
         2,
     ]

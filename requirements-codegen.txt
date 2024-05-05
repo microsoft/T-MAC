@@ -5,4 +5,5 @@ tornado
 psutil
 xgboost>=1.1.0
 cloudpickle
-
+typing_extensions
+pandas
