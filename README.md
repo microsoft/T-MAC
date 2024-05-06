@@ -78,16 +78,6 @@ If you find this repository useful, please use the following BibTeX entry for ci
 
 We currently supports mainstream int4 quantization (e.g., GGUF, GPTQ) on ARM CPU (e.g., M1/M2 Mac, Snapdragon CPUs) and Intel CPU (with AVX2).
 
-### Requirements (Optional)
-
-**You can skip this section to use generated code.**
-
-This project used TVM for kernel code-generation and auto-tuning.
-
-- tvm
-- llvm
-- tvm-rpc: If you want to tune the kernels yourself on M1/M2 Mac or Android instead of provided tuned configurations, please setup tvm-rpc following [the official documentation](https://github.com/apache/tvm/tree/main/apps/cpp_rpc).
-
 ### Installation
 
 Install this project from source with:
@@ -102,27 +92,12 @@ pip install -e .
 
 Currently, we have integrated T-MAC into llama.cpp on windows/linux/osx.
 
-First, compile T-MAC kernels with. **Skip this procedure to use prebuilt kernels.cc.**
+> We have provided prebuilt kernels at `deploy/tuned/kernels.cc` for fast test. To tune kernels on your own device for maximum performance or generate kernels of different shapes, follow [this document](docs/codegen.md).
+
+Build llama.cpp with T-MAC:
 
 ```bash
-cd deploy
-python compile.py -t -o tuned -da -d m2/intel_win -b 4 -nt 1 -tb -gc -gs 32 -ags 32
-```
-
-Then, build T-MAC with:
-
-```bash
-cd ..
-mkdir build
-cd build
-cmake -DCMAKE_INSTALL_PREFIX=${TMAC_PROJECT_DIR}/install ..
-cmake --build . --target install --config Release
-```
-
-After that, build llama.cpp with T-MAC:
-
-```bash
-cd ../3rdparty/llama.cpp
+cd 3rdparty/llama.cpp
 mkdir build
 cd build
 cmake .. -DLLAMA_TMAC=ON -DCMAKE_PREFIX_PATH=${TMAC_PROJECT_DIR}/install/lib/cmake/t-mac -DCMAKE_BUILD_TYPE=Release -DLLAMA_TMAC_TVM_THREADPOOL=OFF
