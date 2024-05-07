@@ -3,7 +3,11 @@ project(TMAC C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 
-if (NOT DEFINED TVM_HOME)
+option(TMAC_STATIC  "Build kernels_static"    OFF)
+option(TMAC_LIBRARY "Build kernels library"   OFF)
+set(TMAC_TVM TMAC_STATIC OR TMAC_LIBRARY)
+
+if(NOT DEFINED TVM_HOME)
   if(DEFINED ENV{TVM_HOME})
     set(TVM_HOME "$ENV{TVM_HOME}")
   else()
@@ -11,7 +15,9 @@ if (NOT DEFINED TVM_HOME)
   endif(DEFINED ENV{TVM_HOME})
 endif (NOT DEFINED TVM_HOME)
 message(STATUS "TVM_HOME: ${TVM_HOME}")
-add_subdirectory(${TVM_HOME} tvm EXCLUDE_FROM_ALL)
+if(TMAC_TVM)
+  add_subdirectory(${TVM_HOME} tvm EXCLUDE_FROM_ALL)
+endif()
 
 set(
   TMAC_INCLUDE_DIRS
@@ -29,17 +35,30 @@ set(KERNEL_DEPLOY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deploy)
 #   VERBATIM
 # )
 
-find_file(
-  kernels_LIBRARY kernels.dll
-  REQUIRED
-  HINTS ${KERNEL_DEPLOY_DIR}/tuned/
-)
+if(TMAC_LIBRARY)
+  find_file(
+    kernels_LIBRARY kernels.dll
+    REQUIRED
+    HINTS ${KERNEL_DEPLOY_DIR}/tuned/
+  )
+endif()
 
-find_file(
-  kernels_OBJECT kernels.o
-  REQUIRED
-  HINTS ${KERNEL_DEPLOY_DIR}/tuned/
-)
+if(TMAC_STATIC)
+  find_file(
+    kernels_OBJECT kernels.o
+    REQUIRED
+    HINTS ${KERNEL_DEPLOY_DIR}/tuned/
+  )
+  add_library(kernels_objs OBJECT IMPORTED)
+  set_target_properties(
+    kernels_objs
+    PROPERTIES
+      IMPORTED_OBJECTS ${kernels_OBJECT}
+  )
+  add_library(kernels_static STATIC $<TARGET_OBJECTS:kernels_objs>)
+  set_target_properties(kernels_static PROPERTIES LINKER_LANGUAGE CXX)
+  target_link_libraries(kernels_static PUBLIC tvm_runtime)
+endif()
 
 find_file(
   tuned_kcfg kcfg.ini
@@ -59,16 +78,7 @@ find_file(
   HINTS ${KERNEL_DEPLOY_DIR}/tuned/
 )
 
-add_library(kernels_objs OBJECT IMPORTED)
-set_target_properties(
-  kernels_objs
-  PROPERTIES
-    IMPORTED_OBJECTS ${kernels_OBJECT}
-)
-add_library(kernels_static STATIC $<TARGET_OBJECTS:kernels_objs>)
-set_target_properties(kernels_static PROPERTIES LINKER_LANGUAGE CXX)
-target_link_libraries(kernels_static PUBLIC tvm_runtime)
-
+include(GNUInstallDirs)
 set(
   TMAC_TVM_COMPILE_DEFS
   DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>
@@ -84,6 +94,7 @@ set(
   CACHE PATH "Location of header files"
 )
 
+include(CMakePackageConfigHelpers)
 configure_package_config_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/cmake/TMACConfig.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/TMACConfig.cmake
@@ -98,10 +109,19 @@ install(
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/t-mac
 )
 
-install(TARGETS kernels_static tvm_runtime LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+if(TMAC_TVM)
+  install(TARGETS tvm_runtime LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+endif()
+if(TMAC_STATIC)
+  install(TARGETS kernels_static LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+  install(FILES ${kernels_OBJECT} DESTINATION ${CMAKE_INSTALL_LIBDIR})
+endif()
+if(TMAC_LIBRARY)
+  install(FILES ${kernels_LIBRARY} DESTINATION ${CMAKE_INSTALL_LIBDIR})
+endif()
 install(DIRECTORY ${TMAC_INCLUDE_DIRS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(FILES ${kernels_header} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/t-mac)
 install(
-  FILES ${tuned_kcfg} ${kernels_OBJECT} ${kernels_LIBRARY} ${kernels_source}
+  FILES ${tuned_kcfg} ${kernels_source}
   DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
