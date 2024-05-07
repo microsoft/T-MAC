@@ -94,10 +94,19 @@ Currently, we have integrated T-MAC into llama.cpp on windows/linux/osx.
 
 > We have provided prebuilt kernels at `deploy/tuned/kernels.cc` for fast test. To tune kernels on your own device for maximum performance or generate kernels of different shapes, follow [this document](docs/codegen.md).
 
+First, build T-MAC with:
+
+```bash
+mkdir build
+cd build
+cmake -DCMAKE_INSTALL_PREFIX=${TMAC_PROJECT_DIR}/install ..
+cmake --build . --target install --config Release
+```
+
 Build llama.cpp with T-MAC:
 
 ```bash
-cd 3rdparty/llama.cpp
+cd ../3rdparty/llama.cpp
 mkdir build
 cd build
 cmake .. -DLLAMA_TMAC=ON -DCMAKE_PREFIX_PATH=${TMAC_PROJECT_DIR}/install/lib/cmake/t-mac -DCMAKE_BUILD_TYPE=Release -DLLAMA_TMAC_TVM_THREADPOOL=OFF
