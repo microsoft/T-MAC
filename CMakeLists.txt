@@ -1,11 +1,12 @@
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.22)
 project(TMAC C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 
 option(TMAC_STATIC  "Build kernels_static"    OFF)
 option(TMAC_LIBRARY "Build kernels library"   OFF)
-set(TMAC_TVM TMAC_STATIC OR TMAC_LIBRARY)
+include(CMakeDependentOption)
+CMAKE_DEPENDENT_OPTION(TMAC_TVM "Build TVM" OFF "NOT TMAC_STATIC;NOT TMAC_LIBRARY" ON)
 
 if(NOT DEFINED TVM_HOME)
   if(DEFINED ENV{TVM_HOME})
@@ -13,7 +14,7 @@ if(NOT DEFINED TVM_HOME)
   else()
     set(TVM_HOME 3rdparty/tvm)
   endif(DEFINED ENV{TVM_HOME})
-endif (NOT DEFINED TVM_HOME)
+endif(NOT DEFINED TVM_HOME)
 message(STATUS "TVM_HOME: ${TVM_HOME}")
 if(TMAC_TVM)
   add_subdirectory(${TVM_HOME} tvm EXCLUDE_FROM_ALL)
