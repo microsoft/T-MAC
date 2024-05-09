@@ -67,7 +67,7 @@ We also profile multi-threading performance for llama-2-7b and llama-2-70b:
 If you find this repository useful, please use the following BibTeX entry for citation.
 ```
 @misc{t-mac,
-      title={T-MAC: CPU Renaissance via Table Lookup for Low-Bit LLM Inference}, 
+      title={T-MAC: CPU Renaissance via Table Lookup for Low-Bit LLM Inference},
       author={Jianyu Wei and Shijie Cao and Ting Cao and Lei Wang and Lingxiao Ma},
       year={2024},
       url={https://github.com/microsoft/T-MAC/}
@@ -94,7 +94,13 @@ Currently, we have integrated T-MAC into llama.cpp on windows/linux/osx.
 
 > We have provided prebuilt kernels at `deploy/tuned/kernels.cc` for fast test. To tune kernels on your own device for maximum performance or generate kernels of different shapes, follow [this document](docs/codegen.md).
 
-First, build T-MAC with:
+If you are using Intel CPUs, first replace prebuilt kernels:
+```
+cd deploy\tuned
+copy avx2\* .\
+```
+
+Build T-MAC with:
 
 ```bash
 mkdir build

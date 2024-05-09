@@ -222,7 +222,10 @@ extern "C"
         half_typedef = """
 #ifndef TMAC_HALF_TYPEDEF_H
 #define TMAC_HALF_TYPEDEF_H
+
+#ifndef __AVX2__
 typedef _Float16 half;
+#endif
 #endif
 """
         c_code = half_typedef + c_code
