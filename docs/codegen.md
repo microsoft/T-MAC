@@ -10,6 +10,13 @@ conda env create --file conda/build-environment.yaml
 conda activate tvm-build
 ```
 
+If you are using Windows, install Visual Studio and toggle Clang tools on, then execute from `Developer Command Prompt for VS`:
+```
+cd 3rdparty/tvm
+conda env create --file conda/build-environment-win.yaml
+conda activate tvm-build
+```
+
 Then install additional dependencies for codegen:
 
 ```bash
@@ -31,12 +38,12 @@ make -j4
 ```
 
 Or if you are using Visual Studio:
-```bash
+```
 mkdir build
+copy cmake\config.cmake build
 cd build
 cmake ..
-cd ..
-cmake --build build --config Release -- /m
+cmake --build . --config Release -- /m
 ```
 
 After that, set `PYTHONPATH` environment variables:
