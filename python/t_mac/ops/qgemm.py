@@ -92,16 +92,19 @@ class QGeMMLUTBitsCodegen(OpCodegen):
 
     def _define_config(self, cfg):
         cfg.define_knob("bm", self.bms)
-        cfg.define_knob("bn", [32])
+        cfg.define_knob("bn", [8, 16, 32, 64])
         cfg.define_knob("kfactor", self.kfactors)
         super()._define_config(cfg)
 
     def _compute(self, M: int, N: int, K: int):
         bm = self.bm
+        self._last_N = N
         if M % bm != 0:
             raise TVMError("M({}) must be divisible by bm({})".format(M, bm))
         if bm % self.bits != 0:
             raise TVMError("bm({}) must be divisible by bits({})".format(bm, self.bits))
+        if N >= self.bn and N % self.bn != 0:
+            raise TVMError("N({}) must be divisible by  bn({})".format(N, self.bn))
 
         k = te.reduce_axis((0, K // self.g), "k")
 
@@ -235,7 +238,10 @@ class QGeMMLUTBitsCodegen(OpCodegen):
             sch[C].unroll(mii)
 
         if self.num_threads > 1:
-            sch[C].parallel(mo)
+            if hasattr(self, "_last_N") and (self._last_N // self.bn >= self.num_threads):
+                sch[C].parallel(no)
+            else:
+                sch[C].parallel(mo)
 
         return sch
 

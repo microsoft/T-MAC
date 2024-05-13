@@ -286,7 +286,11 @@ typedef _Float16 half;
             )
             func_syslib.save(os.path.join(self.save_path, f"kernels.o"))
 
-            return func, self._reference(*args)
+            if self.verify:
+                arrays = self._reference(*args)
+            else:
+                arrays = [np.zeros(shape=[int(s) for s in list(t.shape)], dtype=t.dtype) for t in tensors]
+            return func, arrays
 
     def _verify(self, tvm_arrays: List[tvm.nd.NDArray], arrays: List[np.ndarray]):
         tvm.testing.assert_allclose(tvm_arrays[-1].numpy(), arrays[-1], rtol=1e-5)
