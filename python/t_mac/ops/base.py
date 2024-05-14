@@ -58,7 +58,7 @@ class OpCodegen:
     def _reference(self, *args) -> List[np.ndarray]:
         raise NotImplementedError
 
-    def _define_config(self, cfg: Union[autotvm.ConfigSpace, autotvm.ConfigEntity]):
+    def _define_config(self, cfg: Union[autotvm.ConfigSpace, autotvm.ConfigEntity], *args):
         for key in cfg:
             setattr(self, key, cfg[key].val)
 
@@ -66,7 +66,7 @@ class OpCodegen:
         @autotvm.template(template_name)
         def _func(*args):
             cfg = autotvm.get_config()
-            self._define_config(cfg)
+            self._define_config(cfg, *args)
             tensors = self._compute(*args)
             sch = self._schedule(tensors)
             return sch, tensors

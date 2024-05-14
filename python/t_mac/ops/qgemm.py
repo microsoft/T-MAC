@@ -89,10 +89,15 @@ class QGeMMLUTBitsCodegen(OpCodegen):
             self.bms = [192, 384, 576, 768]
         else:
             self.bms = [256, 128, 512, 1024]
+        self.bns = [8, 16, 32, 64]
 
-    def _define_config(self, cfg):
-        cfg.define_knob("bm", self.bms)
+    def _define_config(self, cfg, M: int, N: int, K: int):
+        cfg.define_knob("bm", [bm for bm in self.bms if (M % bm == 0) and (bm % self.bits == 0)])
         cfg.define_knob("bn", [8, 16, 32, 64])
+        if N <= 8:
+            cfg.define_knob("bn", [8])
+        else:
+            cfg.define_knob("bn", [bn for bn in self.bns if (N % bn == 0)])
         cfg.define_knob("kfactor", self.kfactors)
         super()._define_config(cfg)
 
@@ -343,7 +348,7 @@ class QGeMMLUTBitsPreprocessorCodegen(OpCodegen):
         self.fast_aggregation_k = fast_aggregation_k
         self.M = M
 
-    def _define_config(self, cfg):
+    def _define_config(self, cfg, *args):
         self.kfactor = self.act_group_size // self.g
         super()._define_config(cfg)
 

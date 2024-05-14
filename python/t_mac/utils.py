@@ -6,7 +6,6 @@ _device_kwargs = {
     "m2": {
         "target": "llvm -mtriple=arm64-apple-darwin23.1.0 -mcpu=apple-m2",
         "eval_kwargs": {
-            "number": 100,
             "min_repeat_ms": 50,
             "repeat": 100,
         },
@@ -40,7 +39,7 @@ _device_kwargs = {
     "intel_win": {
         "target": "llvm -mtriple=x86_64-pc-windows-msvc -mcpu=core-avx2",
         "eval_kwargs": {
-            "number": 100,
+            "number": 10,
             "repeat": 10,
         },
         "remote_kwargs": None,
@@ -51,7 +50,7 @@ _device_kwargs = {
     "jetson":{
         "target": "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+fullfp16,+fp-armv8,+neon",
         "eval_kwargs": {
-            "number": 100,
+            "number": 10,
             "repeat": 10,
         },
         "remote_kwargs": None,
