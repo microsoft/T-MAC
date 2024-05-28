@@ -73,25 +73,25 @@ class QGeMMLUTBitsCodegen(OpCodegen):
         # w = b0 + b1 * 2 + b2 * 4 + b3 * 8 - 8
         #   = 1 / 2 (b0' + gamma * s0) + b1' + b2' * 2 + b3' * 4, where s0 = -1
         self.alphas = get_bits_alphas(bits)
-        # Current implementation decides do_scale_final only by m_group_size
-        # Consider fine-grained lut_scale for m_groups == -1?
-        if m_groups == -1:
-            self.do_scale_final = False
-        else:
-            self.do_scale_final = True
-        self.kfactors = [8, 16]
-        if not self.do_scale_final:
-            self.kfactors = [k for k in self.kfactors if (k * 4 >= self.act_group_size and k * 4 <= self.group_size)]
         self.m_groups = m_groups
         self.aggregation_dtype = aggregation_dtype
         self.fast_aggregation = fast_aggregation
+
+    @property
+    def do_scale_final(self):
+        # Current implementation decides do_scale_final only by m_group_size
+        # Consider fine-grained lut_scale for m_groups == -1?
+        return self.m_groups != -1
+
+    def _define_config(self, cfg, M: int, N: int, K: int):
         if self.bits == 3:
             self.bms = [192, 384, 576, 768]
         else:
             self.bms = [256, 128, 512, 1024]
         self.bns = [8, 16, 32, 64]
-
-    def _define_config(self, cfg, M: int, N: int, K: int):
+        self.kfactors = [8, 16]
+        if not self.do_scale_final:
+            self.kfactors = [k for k in self.kfactors if (k * 4 >= self.act_group_size and k * 4 <= self.group_size)]
         cfg.define_knob("bm", [bm for bm in self.bms if (M % bm == 0) and (bm % self.bits == 0)])
         cfg.define_knob("bn", [8, 16, 32, 64])
         if N <= 8:

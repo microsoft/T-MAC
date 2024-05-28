@@ -490,6 +490,11 @@ int32_t tbl_float_reset(int32_t m, void* c) {
     return 0;
 }
 
+int32_t tbl_int32_reset(int32_t m, int32_t* c) {
+    memset(c, 0, m * sizeof(int32_t));
+    return 0;
+}
+
 #ifdef __cplusplus
 }
 #endif

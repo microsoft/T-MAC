@@ -106,7 +106,7 @@ def tbl(
     api_args = (
         g,
         to_intrinstr(dtype),
-        to_intrinstr(out_dtype),
+        to_intrinstr(out_dtype if not do_scale_final else aggregation_dtype),
         str(has_scale).lower(),
         kfactor,
         bits,
@@ -122,11 +122,12 @@ def tbl(
                 c_buffer.access_ptr("w"),
                 lut_buffer.access_ptr("r"),
                 a_buffer.access_ptr("r"),
-                scales_buffer.access_ptr("r"),
             ]
-            if has_lut_scale:
-                args.append(lut_scales_buffer.access_ptr("r"))
-                args.append(lut_biases_buffer.access_ptr("r"))
+            if not do_scale_final:
+                args.append(scales_buffer.access_ptr("r"))
+                if has_lut_scale:
+                    args.append(lut_scales_buffer.access_ptr("r"))
+                    args.append(lut_biases_buffer.access_ptr("r"))
             ib.emit(
                 tvm.tir.call_extern(
                     "int32",
