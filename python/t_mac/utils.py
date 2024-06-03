@@ -1,5 +1,6 @@
 import os
 import copy
+import numpy as np
 
 
 _device_kwargs = {
@@ -71,3 +72,8 @@ def get_default_device_kwargs(device: str):
 def get_bits_alphas(bits: int):
     alphas = [1 / 2, 1, 2, 4]
     return alphas[:bits]
+
+
+def nmse(a: np.ndarray, b: np.ndarray):
+    a, b = a.astype(np.float32), b.astype(np.float32)
+    return np.mean(np.square(a - b)) / np.mean(np.square(a))

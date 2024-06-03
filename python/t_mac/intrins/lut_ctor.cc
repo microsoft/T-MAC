@@ -31,43 +31,10 @@ static inline float _mm256_addv_ps(const __m256 v) {
 }
 #endif
 
-template <int K>
-struct mylog2 {
-    enum {
-        value = 1 + mylog2<K / 2>::value
-    };
-};
-
-template <>
-struct mylog2<0> {
-    enum {
-        value = -1
-    };
-};
-
-constexpr int get_bias_scale(int bits) {
-    // The bias scale will be added to the first bit
-    // 15 = (1/2 + 1 + 2 + 4) / (1/2)
-    // 7 = (1/2 + 1 + 2) / (1/2)
-    // 3 = (1/2 + 1) / (1/2)
-    // 1 = (1/2) / (1/2)
-    if (bits == 4) {
-        return 15;
-    } else if (bits == 3) {
-        return 7;
-    } else if (bits == 2) {
-        return 3;
-    } else if (bits == 1) {
-        return 1;
-    } else {
-        return 0;
-    }
-}
-
 // Current implementation requires (K * 4) == act_group_size and K >= 8
 // s0 = -1, s1 = 1
-// FastAggregationK = 0 to disable FastAggregation
 // TODO: loop K
+// Still preserve FastAggregationK althougth it's unused for compatibility
 template <int FastAggregationK = 16, int Bits = 4>
 inline int32_t lut_ctor_g4_int8_impl(int32_t act_k, int8_t* qlut, float_type* b, float_type* lut_scales, float_type* lut_biases) {
 #ifdef __ARM_NEON
@@ -246,12 +213,6 @@ inline int32_t lut_ctor_g4_int8_impl(int32_t act_k, int8_t* qlut, float_type* b,
         }
     }
 #endif
-    // https://arxiv.org/pdf/2106.10860.pdf
-    // Fast aggregation bias: -FastAggregationK * log2(FastAggregationK) / 4 * (act_k / FastAggregationK)
-    if (FastAggregationK) {
-        biases -= scales * (mylog2<FastAggregationK>::value / 4 * get_bias_scale(Bits)) * act_k;
-        scales = scales * FastAggregationK;
-    }
 
     *lut_scales = scales;
     *lut_biases = biases;

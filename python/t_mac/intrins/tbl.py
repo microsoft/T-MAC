@@ -24,6 +24,7 @@ def tbl(
     do_scale_final: bool = False,
     aggregation_dtype: str = "int32",
     fast_aggregation: bool = False,
+    zero_point: bool = False,
 ) -> Tuple[tvm.tir.TensorIntrin, str, str, str]:
     """Create a table lookup intrinsics for a given table size and bitwidth,
     weights should be within the same group.
@@ -39,9 +40,14 @@ def tbl(
     )
 
     if m_groups == -1:
-        scales_shape = (1, m // bits)
-        def _get_scale(m, k):
-            return Scales[0, m // bits]
+        if zero_point:
+            scales_shape = (1, m // bits * 2)
+            def _get_scale(m, k):
+                return Scales[0, m // bits * 2] - Scales[0, m // bits * 2 + 1]
+        else:
+            scales_shape = (1, m // bits)
+            def _get_scale(m, k):
+                return Scales[0, m // bits]
         scale_buffer_strides = [te.var("ss"), 1]
     else:
         scales_shape = (1,)
@@ -112,6 +118,7 @@ def tbl(
         bits,
         act_group_size // 4,
         str(fast_aggregation).lower(),
+        str(zero_point).lower(),
     )
 
     def _intrin_func(ins, outs):
@@ -131,7 +138,7 @@ def tbl(
             ib.emit(
                 tvm.tir.call_extern(
                     "int32",
-                    "tbl_g{}_{}_{}_update_s{}_k{}_b{}_ak{}_fa{}".format(*api_args),
+                    "tbl_g{}_{}_{}_update_s{}_k{}_b{}_ak{}_fa{}_z{}".format(*api_args),
                     *args,
                 )
             )
@@ -154,7 +161,7 @@ def tbl(
 
         return _body(), _reduce_reset(), _reduce_update()
 
-    body_code = "tbl_g{}_{}_{}_update({}, {}, {}, {}, {})".format(*api_args)
+    body_code = "tbl_g{}_{}_{}_update({}, {}, {}, {}, {}, {})".format(*api_args)
     ll_code, header_code, body_code = _create_llvm("tbl.cc", body_code, cc, cc_opts)
 
     buffer_params = {"offset_factor": 1}
