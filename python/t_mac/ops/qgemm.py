@@ -100,7 +100,7 @@ class QGeMMLUTBitsCodegen(OpCodegen):
         if self.bits == 3:
             self.bms = [192, 384, 576, 768]
         else:
-            self.bms = [256, 128, 512, 1024]
+            self.bms = [256, 128, 512, 1024, 320, 640]
         self.bns = [8, 16, 32, 64]
         self.kfactors = [8, 16]
         if not self.do_scale_final:
@@ -314,16 +314,24 @@ class QGeMMLUTBitsCodegen(OpCodegen):
 
                     scales_mi = (m % self.bm) // self.bits // self.simd_n_out
                     scales_e = ((m % self.bm) % self.simd_n_out)
-                    if self.zero_point:
-                        cbits[n, m] += lut[n, k, a_e] * lut_scales[n, k * self.g // self.act_group_size] * scales[mo, k * self.g // self.group_size, scales_mi, 0, scales_e]
-                    else:
-                        cbits[n, m] += lut[n, k, a_e] * lut_scales[n, k * self.g // self.act_group_size] * scales[mo, k * self.g // self.group_size, scales_mi, scales_e]
-                    if (((k * self.g) % self.act_group_size) == 0) and ((((m % self.bm) // self.simd_n_out) % self.bits) == 0):
+
+                    if self.m_groups == -1:
                         if self.zero_point:
-                            cbits[n, m] += lut_biases[n, k * self.g // self.act_group_size] * scales[mo, k * self.g // self.group_size, scales_mi, 0, scales_e]
-                            cbits[n, m] += lut_biases[n, k * self.g // self.act_group_size] * (1 / self.alphas[0]) * scales[mo, k * self.g // self.group_size, scales_mi, 1, scales_e]
+                            s = scales[mo, k * self.g // self.group_size, scales_mi, 0, scales_e]
                         else:
-                            cbits[n, m] += lut_biases[n, k * self.g // self.act_group_size] * scales[mo, k * self.g // self.group_size, scales_mi, scales_e]
+                            s = scales[mo, k * self.g // self.group_size, scales_mi, scales_e]
+                    else:
+                        m_group_size = M // self.bits // self.m_groups
+                        s = scales[m // self.bits // m_group_size]
+
+                    if self.zero_point:
+                        cbits[n, m] += lut[n, k, a_e] * lut_scales[n, k * self.g // self.act_group_size] * s
+                    else:
+                        cbits[n, m] += lut[n, k, a_e] * lut_scales[n, k * self.g // self.act_group_size] * s
+                    if (((k * self.g) % self.act_group_size) == 0) and ((((m % self.bm) // self.simd_n_out) % self.bits) == 0):
+                        cbits[n, m] += lut_biases[n, k * self.g // self.act_group_size] * s
+                        if self.zero_point:
+                            cbits[n, m] += lut_biases[n, k * self.g // self.act_group_size] * (1 / self.alphas[0]) * scales[mo, k * self.g // self.group_size, scales_mi, 1, scales_e]
 
         c = (
             cbits.reshape((N, M // self.simd_n_out // self.bits, self.bits, self.simd_n_out))

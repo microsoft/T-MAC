@@ -16,27 +16,26 @@ logger = logging.getLogger("compile")
 
 
 # Please set for more configs
-MKNs = [
-    # llama-7b
+BMKNs = [
+    # llama-7b-4bit
     # M, K, N, m_groups
-    # [12288, 4096, 1, -1],
-    [4096, 4096, 1, -1],
-    [11008, 4096, 1, -1],
-    [4096, 11008, 1, -1],
-    # BitNet
-    # [12288, 4096, 1, 3],
-    # [4096, 4096, 1, 1],
-    # [11008, 4096, 1, 1],
-    # [4096, 11008, 1, 1],
-    # llama-70b
-    # [1024, 8192, 1, -1],
-    # [8192, 8192, 1, -1],
-    # [28672, 8192, 1, -1],
-    # [8192, 28672, 1, -1],
+    # [4, 12288, 4096, 1, -1],
+    # [4, 4096, 4096, 1, -1],
+    # [4, 11008, 4096, 1, -1],
+    # [4, 4096, 11008, 1, -1],
+    # llama-7b-2bit
+    # M, K, N, m_groups
+    # [2, 12288, 4096, 1, -1],
+    # [2, 4096, 4096, 1, -1],
+    # [2, 11008, 4096, 1, -1],
+    # [2, 4096, 11008, 1, -1],
     # BitNet 3B
-    # [3200, 3200, 1, -1],
-    # [8640, 3200, 1, -1],
-    # [3200, 8640, 1, -1],
+    [2, 3200, 800, 1, 1],
+    [2, 3200, 3200, 1, 1],
+    [2, 3200, 10240, 1, 1],
+    [2, 10240, 3200, 1, 1],
+    [2, 800, 3200, 1, 1],
+    # [4, 100827, 3200, 1, 1],
 ]
 
 
@@ -47,9 +46,8 @@ def compile(
     cc_opts: Optional[list] = None,
     eval_kwargs: Optional[dict] = None,
     out_dtype: str = "float16",
+    aggregation_dtype: str = "int32",
 ):
-    bits = FLAGS.bits
-
     if target == "opencl" or target == "vulkan":
         target_host = "llvm -mtriple=arm64-linux-android -mattr=+neon"
     else:
@@ -59,12 +57,11 @@ def compile(
         "dtype": dtype,
         "target": target,
         "save_dir": FLAGS.out_path,
-        "verify": True,
+        "verify": False,
         "target_host": target_host,
         "tune": FLAGS.tune,
         "reuse_tuned": FLAGS.reuse_tuned,
         "remote_kwargs": remote_kwargs,
-        "bits": bits,
         "cc_opts": cc_opts,
         "out_dtype": out_dtype,
         "act_group_size": FLAGS.act_group_size,
@@ -111,18 +108,21 @@ def compile(
     return_type = "lower" if not FLAGS.gen_c_code else "c"
     mod = None
     body_code = ""
-    qgemm_lut = QGeMMLUTBitsCodegen(
-        name="qgemm_lut",
-        group_size=FLAGS.group_size,
-        fast_aggregation=FLAGS.fast_aggregation,
-        **codegen_kwargs,
-    )
-    preprocessor = QGeMMLUTBitsPreprocessorCodegen(
-        name="preprocessor",
-        **codegen_kwargs,
-    )
     config = configparser.ConfigParser()
-    for M, K, N, m_groups in MKNs:
+    for bits, M, K, N, m_groups in BMKNs:
+        qgemm_lut = QGeMMLUTBitsCodegen(
+            name="qgemm_lut",
+            group_size=FLAGS.group_size,
+            fast_aggregation=FLAGS.fast_aggregation,
+            bits=bits,
+            aggregation_dtype=aggregation_dtype,
+            **codegen_kwargs,
+        )
+        preprocessor = QGeMMLUTBitsPreprocessorCodegen(
+            name="preprocessor",
+            bits=bits,
+            **codegen_kwargs,
+        )
         M = M * bits
         qgemm_lut.m_groups = m_groups
         preprocessor.M = M
@@ -213,7 +213,6 @@ def parse_args():
     parser.add_argument("-t", "--tune", action="store_true")
     parser.add_argument("-r", "--reuse_tuned", action="store_true")
     parser.add_argument("-v", "--verbose", action="store_true")
-    parser.add_argument("-b", "--bits", type=int, default=2)
     parser.add_argument("-tb", "--one_thread_block", action="store_true")
     parser.add_argument("-gc", "--gen_c_code", action="store_true")
     parser.add_argument("-da", "--disable_assert", action="store_true")
