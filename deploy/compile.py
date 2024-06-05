@@ -161,7 +161,7 @@ def compile(
             "kfactor": str(qgemm_lut.kfactor),
             "group_size": str(qgemm_lut.group_size),
             "lut_scales_size": str(N * K // qgemm_lut.act_group_size),
-            "scales_size": str(qgemm_lut.m_groups if qgemm_lut.m_groups > 1 else (M // bits * K // qgemm_lut.group_size)),
+            "scales_size": str(qgemm_lut.m_groups if qgemm_lut.m_groups != -1 else (M // bits * K // qgemm_lut.group_size)),
             "n_tile_num": str(M // qgemm_lut.bm),
         }
 
