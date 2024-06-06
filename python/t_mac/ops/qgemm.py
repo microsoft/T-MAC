@@ -90,11 +90,10 @@ class QGeMMLUTBitsCodegen(OpCodegen):
                 logger.warning("Currently zero point is not supported for BitNet-like scales")
                 self.zero_point = False
 
-    @property
-    def do_scale_final(self):
+    def do_scale_final(self, K: int):
         # Current implementation decides do_scale_final only by m_group_size
         # Consider fine-grained lut_scale for m_groups == -1?
-        return self.m_groups != -1
+        return self.m_groups != -1 and self.act_group_size == K
 
     def _define_config(self, cfg, M: int, N: int, K: int):
         if self.bits == 3:
@@ -103,15 +102,16 @@ class QGeMMLUTBitsCodegen(OpCodegen):
             self.bms = [256, 128, 512, 1024, 320, 640]
         self.bns = [8, 16, 32, 64]
         self.kfactors = [8, 16]
-        if not self.do_scale_final:
-            self.kfactors = [k for k in self.kfactors if (k * 4 >= self.act_group_size and k * 4 <= self.group_size)]
+        if not self.do_scale_final(K):
+            w_group_size = self.group_size if self.m_groups == -1 else K
+            kfactors = [k for k in self.kfactors if ((k * self.g) % self.act_group_size == 0) and (w_group_size % (k * self.g) == 0)]
         cfg.define_knob("bm", [bm for bm in self.bms if (M % bm == 0) and (bm % self.bits == 0)])
         cfg.define_knob("bn", [8, 16, 32, 64])
         if N <= 8:
             cfg.define_knob("bn", [8])
         else:
             cfg.define_knob("bn", [bn for bn in self.bns if (N % bn == 0)])
-        cfg.define_knob("kfactor", self.kfactors)
+        cfg.define_knob("kfactor", kfactors)
         super()._define_config(cfg)
 
     def _compute(self, M: int, N: int, K: int):
@@ -121,7 +121,9 @@ class QGeMMLUTBitsCodegen(OpCodegen):
         if bm % self.bits != 0:
             raise TVMError("bm({}) must be divisible by bits({})".format(bm, self.bits))
         if N >= self.bn and N % self.bn != 0:
-            raise TVMError("N({}) must be divisible by  bn({})".format(N, self.bn))
+            raise TVMError("N({}) must be divisible by bn({})".format(N, self.bn))
+        if K % self.act_group_size != 0:
+            raise TVMError("K({}) must be devisible by act_group_size({})".format(K, self.act_group_size))
 
         k = te.reduce_axis((0, K // self.g), "k")
 
@@ -139,10 +141,7 @@ class QGeMMLUTBitsCodegen(OpCodegen):
                 def _get_scale(m, k):
                     return Scales[m // bm, k * self.g // self.group_size, (m % bm) // self.bits]
         else:
-            # Currently we enforce unified scale for activation as well
-            # to do fast scale multiplication (do_scale_final = True)
-            assert self.act_group_size == K
-            m_group_size = M // self.bits // self.m_groups
+            m_group_size = M // self.m_groups
             scales_shape = (self.m_groups,)
             def _get_scale(m, k):
                 return Scales[m // m_group_size]
@@ -160,7 +159,7 @@ class QGeMMLUTBitsCodegen(OpCodegen):
             def _lut_scale(n, k, val):
                 return val
 
-        if not self.do_scale_final:
+        if not self.do_scale_final(K):
             def _scale_first(m, n, k, lut_val):
                 return _lut_scale(n, k, lut_val.astype(self.out_dtype)) * _get_scale(m, k)
             def _scale_final(m, n, cbits_sum):
@@ -209,6 +208,8 @@ class QGeMMLUTBitsCodegen(OpCodegen):
             return [A, LUT, Scales, C]
 
     def _schedule(self, tensors: List[te.Tensor]):
+        LUT = tensors[1]
+        K = int(LUT.shape[1] * self.g)
         C = tensors[-1]
         sch: te.Schedule = te.create_schedule(C.op)
 
@@ -240,7 +241,7 @@ class QGeMMLUTBitsCodegen(OpCodegen):
             has_lut_scale=self.has_lut_scale,
             out_dtype=self.out_dtype,
             m_groups=self.m_groups,
-            do_scale_final=self.do_scale_final,
+            do_scale_final=self.do_scale_final(K),
             aggregation_dtype=self.aggregation_dtype,
             fast_aggregation=self.fast_aggregation,
             zero_point=self.zero_point,
@@ -321,8 +322,8 @@ class QGeMMLUTBitsCodegen(OpCodegen):
                         else:
                             s = scales[mo, k * self.g // self.group_size, scales_mi, scales_e]
                     else:
-                        m_group_size = M // self.bits // self.m_groups
-                        s = scales[m // self.bits // m_group_size]
+                        m_group_size = M // self.m_groups
+                        s = scales[m // m_group_size]
 
                     if self.zero_point:
                         cbits[n, m] += lut[n, k, a_e] * lut_scales[n, k * self.g // self.act_group_size] * s
@@ -396,6 +397,12 @@ class QGeMMLUTBitsPreprocessorCodegen(OpCodegen):
         super()._define_config(cfg)
 
     def _compute(self, N: int, K: int):
+        if K % self.act_group_size != 0:
+            raise TVMError("K({}) must be devisible by act_group_size({})".format(K, self.act_group_size))
+        # TODO: modify partial_max to support self.act_group_size % 32 != 0
+        if self.act_group_size % 32 != 0:
+            raise TVMError("act_group_size({}) must be devisible by 32".format(self.act_group_size))
+
         B = te.placeholder((N, K), dtype=self.out_dtype, name="B")
 
         sk = te.reduce_axis((0, self.act_group_size // self.g), "k")

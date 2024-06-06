@@ -320,7 +320,7 @@ constexpr int get_bias_scale(int bits) {
 
 // When FastAggregation is enabled, FastAggregationK = ActK
 // zero_points is merged into scales to maintain API
-template <bool has_scale, int K, int Bits, int ActK = 16, bool FastAggregation = false, bool ZeroPoint = false>
+template <bool has_scale, int K, int Bits, int ActK = 16, bool FastAggregation = false, bool ZeroPoint = false, bool OneScale = false>
 inline int32_t tbl_g4_int8_float_update_impl(int32_t m, float_type* c, int8_t* lut, uint8_t* a, float_type* scales, float_type* lut_scales, float_type* lut_biases) {
 #ifdef __ARM_NEON
     const uint8x16_t vec_mask = vdupq_n_u8(0x0f);
@@ -389,6 +389,7 @@ inline int32_t tbl_g4_int8_float_update_impl(int32_t m, float_type* c, int8_t* l
         }
 
         if (ZeroPoint) {
+            // OneScale mode is disabled for ZeroPoint = True
             float16x8_t vec_s0 = vld1q_f16(scales + ((i / 4    ) / Bits) * 16);
             float16x8_t vec_z0 = vld1q_f16(scales + ((i / 4    ) / Bits) * 16 + 8);
             float16x8_t vec_s1 = vld1q_f16(scales + ((i / 4 + 1) / Bits) * 16);
@@ -402,14 +403,22 @@ inline int32_t tbl_g4_int8_float_update_impl(int32_t m, float_type* c, int8_t* l
             vst1q_f16(c + i * 2 + 16, vld1q_f16(c + i * 2 + 16) + vec_c2 * vec_s2 + vec_z2 * partial_sum);
             vst1q_f16(c + i * 2 + 24, vld1q_f16(c + i * 2 + 24) + vec_c3 * vec_s3 + vec_z3 * partial_sum);
         } else {
-            float16x8_t vec_s0 = vld1q_f16(scales + ((i / 4    ) / Bits) * 8);
-            float16x8_t vec_s1 = vld1q_f16(scales + ((i / 4 + 1) / Bits) * 8);
-            float16x8_t vec_s2 = vld1q_f16(scales + ((i / 4 + 2) / Bits) * 8);
-            float16x8_t vec_s3 = vld1q_f16(scales + ((i / 4 + 3) / Bits) * 8);
-            vst1q_f16(c + i * 2,      vld1q_f16(c + i * 2     ) + vec_c0 * vec_s0);
-            vst1q_f16(c + i * 2 + 8,  vld1q_f16(c + i * 2 + 8 ) + vec_c1 * vec_s1);
-            vst1q_f16(c + i * 2 + 16, vld1q_f16(c + i * 2 + 16) + vec_c2 * vec_s2);
-            vst1q_f16(c + i * 2 + 24, vld1q_f16(c + i * 2 + 24) + vec_c3 * vec_s3);
+            if (OneScale) {
+                float_type vec_s = scales[0];
+                vst1q_f16(c + i * 2,      vld1q_f16(c + i * 2     ) + vec_c0 * vec_s);
+                vst1q_f16(c + i * 2 + 8,  vld1q_f16(c + i * 2 + 8 ) + vec_c1 * vec_s);
+                vst1q_f16(c + i * 2 + 16, vld1q_f16(c + i * 2 + 16) + vec_c2 * vec_s);
+                vst1q_f16(c + i * 2 + 24, vld1q_f16(c + i * 2 + 24) + vec_c3 * vec_s);
+            } else {
+                float16x8_t vec_s0 = vld1q_f16(scales + ((i / 4    ) / Bits) * 8);
+                float16x8_t vec_s1 = vld1q_f16(scales + ((i / 4 + 1) / Bits) * 8);
+                float16x8_t vec_s2 = vld1q_f16(scales + ((i / 4 + 2) / Bits) * 8);
+                float16x8_t vec_s3 = vld1q_f16(scales + ((i / 4 + 3) / Bits) * 8);
+                vst1q_f16(c + i * 2,      vld1q_f16(c + i * 2     ) + vec_c0 * vec_s0);
+                vst1q_f16(c + i * 2 + 8,  vld1q_f16(c + i * 2 + 8 ) + vec_c1 * vec_s1);
+                vst1q_f16(c + i * 2 + 16, vld1q_f16(c + i * 2 + 16) + vec_c2 * vec_s2);
+                vst1q_f16(c + i * 2 + 24, vld1q_f16(c + i * 2 + 24) + vec_c3 * vec_s3);
+            }
         }
     }
 #elif defined __AVX2__
@@ -507,7 +516,53 @@ inline int32_t tbl_g4_int8_float_update_impl(int32_t m, float_type* c, int8_t* l
 template <int K, int Bits>
 inline int32_t tbl_g4_int8_int32_update_impl(int32_t m, int32_t* c, int8_t* lut, uint8_t* a) {
 #ifdef __ARM_NEON
-    // TODO: implement this
+    const uint8x16_t vec_mask = vdupq_n_u8(0x0f);
+    int8x16_t vec_lut[K];
+
+#pragma unroll
+    for (int k = 0; k < K; k++) {
+        vec_lut[k] = vld1q_s8(lut + k * 16);
+    }
+
+    SignedAdder<false, K> adder_bot, adder_top;
+    for (int i = 0; i < m / 2; i += 16) {
+#pragma unroll
+        for (int k = 0; k < K; k++) {
+            // (M // bm, KK / K / 4, bm / 16 / 2, K * 16)
+            uint8x16_t vec_as = vld1q_u8(a + i * K + k * 16);
+            uint8x16_t vec_a_top = vshrq_n_u8(vec_as, 4);
+            uint8x16_t vec_a_bot = vandq_u8(vec_as, vec_mask);
+
+            int8x16_t vec_v_bot_tmp = vqtbl1q_s8(vec_lut[k], vec_a_bot);
+            int8x16_t vec_v_top_tmp = vqtbl1q_s8(vec_lut[k], vec_a_top);
+            adder_bot.push(vec_v_bot_tmp, k);
+            adder_top.push(vec_v_top_tmp, k);
+        }
+
+        int16x8_t vec_v_bot_low  = adder_bot.get_low();
+        int16x8_t vec_v_bot_high = adder_bot.get_high();
+        int16x8_t vec_v_top_low  = adder_top.get_low();
+        int16x8_t vec_v_top_high = adder_top.get_high();
+
+        int32x4_t vec_v_bot_low_low = vmovl_s16(vget_low_s16(vec_v_bot_low));
+        int32x4_t vec_v_bot_low_high = vmovl_high_s16(vec_v_bot_low);
+        int32x4_t vec_v_bot_high_low = vmovl_s16(vget_low_s16(vec_v_bot_high));
+        int32x4_t vec_v_bot_high_high = vmovl_high_s16(vec_v_bot_high);
+        int32x4_t vec_v_top_low_low = vmovl_s16(vget_low_s16(vec_v_top_low));
+        int32x4_t vec_v_top_low_high = vmovl_high_s16(vec_v_top_low);
+        int32x4_t vec_v_top_high_low = vmovl_s16(vget_low_s16(vec_v_top_high));
+        int32x4_t vec_v_top_high_high = vmovl_high_s16(vec_v_top_high);
+
+        vst1q_s32(c + i * 2,      vld1q_s32(c + i * 2     ) + vec_v_bot_low_low  );
+        vst1q_s32(c + i * 2 + 4,  vld1q_s32(c + i * 2 + 4 ) + vec_v_bot_low_high );
+        vst1q_s32(c + i * 2 + 8,  vld1q_s32(c + i * 2 + 8 ) + vec_v_bot_high_low );
+        vst1q_s32(c + i * 2 + 12, vld1q_s32(c + i * 2 + 12) + vec_v_bot_high_high);
+        vst1q_s32(c + i * 2 + 16, vld1q_s32(c + i * 2 + 16) + vec_v_top_low_low  );
+        vst1q_s32(c + i * 2 + 20, vld1q_s32(c + i * 2 + 20) + vec_v_top_low_high );
+        vst1q_s32(c + i * 2 + 24, vld1q_s32(c + i * 2 + 24) + vec_v_top_high_low );
+        vst1q_s32(c + i * 2 + 28, vld1q_s32(c + i * 2 + 28) + vec_v_top_high_high);
+    }
+
 #elif defined __AVX2__
     const __m128i vec_mask = _mm_set1_epi8(0x0f);
     __m128i vec_lut[K];
@@ -594,23 +649,24 @@ inline int32_t tbl_g4_int8_int16_update_impl(int32_t m, int16_t* c, int8_t* lut,
 #endif
 }
 
-#define tbl_g4_float_float_update(s, k, b, ak, fa, z)                                                                                                       \
-    int32_t tbl_g4_float_float_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa##_z##z(int32_t m, void* c, void* lut, uint8_t* a, void* scales) {  \
+// TODO: refactor function naming
+#define tbl_g4_float_float_update(s, k, b, ak, fa, z, os)                                                                                                       \
+    int32_t tbl_g4_float_float_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa##_z##z_os##os(int32_t m, void* c, void* lut, uint8_t* a, void* scales) {  \
         return tbl_g4_float_float_update_impl<s, k, b>(m, (float_type*)c, (float_type*)lut, a, (float_type*)scales);                                                                            \
     }
 
-#define tbl_g4_int8_float_update(s, k, b, ak, fa, z)                                                                                                                                                   \
-    int32_t tbl_g4_int8_float_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa##_z##z(int32_t m, void* c, int8_t* lut, uint8_t* a, void* scales, void* lut_scales, void* lut_biases) {  \
-        return tbl_g4_int8_float_update_impl<s, k, b, ak, fa, z>(m, (float_type*)c, lut, a, (float_type*)scales, (float_type*)lut_scales, (float_type*)lut_biases);                                                                                        \
+#define tbl_g4_int8_float_update(s, k, b, ak, fa, z, os)                                                                                                                                                   \
+    int32_t tbl_g4_int8_float_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa##_z##z##_os##os(int32_t m, void* c, int8_t* lut, uint8_t* a, void* scales, void* lut_scales, void* lut_biases) {  \
+        return tbl_g4_int8_float_update_impl<s, k, b, ak, fa, z, os>(m, (float_type*)c, lut, a, (float_type*)scales, (float_type*)lut_scales, (float_type*)lut_biases);                                                                                        \
     }
 
-#define tbl_g4_int8_int32_update(s, k, b, ak, fa, z)                                                                            \
-    int32_t tbl_g4_int8_int32_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa##_z##z(int32_t m, int32_t* c, int8_t* lut, uint8_t* a) {  \
+#define tbl_g4_int8_int32_update(s, k, b, ak, fa, z, os)                                                                            \
+    int32_t tbl_g4_int8_int32_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa##_z##z_os##os(int32_t m, int32_t* c, int8_t* lut, uint8_t* a) {  \
         return tbl_g4_int8_int32_update_impl<k, b>(m, c, lut, a);                                                        \
     }
 
-#define tbl_g4_int8_int16_update(s, k, b, ak, fa, z)                                                                            \
-    int32_t tbl_g4_int8_int16_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa##_z##z(int32_t m, int16_t* c, int8_t* lut, uint8_t* a) {  \
+#define tbl_g4_int8_int16_update(s, k, b, ak, fa, z, os)                                                                            \
+    int32_t tbl_g4_int8_int16_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa##_z##z_os##os(int32_t m, int16_t* c, int8_t* lut, uint8_t* a) {  \
         return tbl_g4_int8_int16_update_impl<k, b>(m, c, lut, a);                                                        \
     }
 

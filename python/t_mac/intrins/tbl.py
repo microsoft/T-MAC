@@ -116,9 +116,10 @@ def tbl(
         str(has_scale).lower(),
         kfactor,
         bits,
-        act_group_size // 4,
+        min(act_group_size // 4, kfactor),
         str(fast_aggregation).lower(),
         str(zero_point).lower(),
+        str(m_groups != -1).lower(),
     )
 
     def _intrin_func(ins, outs):
@@ -138,7 +139,7 @@ def tbl(
             ib.emit(
                 tvm.tir.call_extern(
                     "int32",
-                    "tbl_g{}_{}_{}_update_s{}_k{}_b{}_ak{}_fa{}_z{}".format(*api_args),
+                    "tbl_g{}_{}_{}_update_s{}_k{}_b{}_ak{}_fa{}_z{}_os{}".format(*api_args),
                     *args,
                 )
             )
@@ -161,7 +162,7 @@ def tbl(
 
         return _body(), _reduce_reset(), _reduce_update()
 
-    body_code = "tbl_g{}_{}_{}_update({}, {}, {}, {}, {}, {})".format(*api_args)
+    body_code = "tbl_g{}_{}_{}_update({}, {}, {}, {}, {}, {}, {})".format(*api_args)
     ll_code, header_code, body_code = _create_llvm("tbl.cc", body_code, cc, cc_opts)
 
     buffer_params = {"offset_factor": 1}
