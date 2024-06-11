@@ -97,20 +97,21 @@ class QGeMMLUTBitsCodegen(OpCodegen):
 
     def _define_config(self, cfg, M: int, N: int, K: int):
         if self.bits == 3:
-            self.bms = [192, 384, 576, 768]
+            bms = [192, 384, 576, 768]
         else:
-            self.bms = [256, 128, 512, 1024, 320, 640]
-        self.bns = [8, 16, 32, 64]
-        self.kfactors = [8, 16]
-        if not self.do_scale_final(K):
-            w_group_size = self.group_size if self.m_groups == -1 else K
-            kfactors = [k for k in self.kfactors if ((k * self.g) % self.act_group_size == 0) and (w_group_size % (k * self.g) == 0)]
-        cfg.define_knob("bm", [bm for bm in self.bms if (M % bm == 0) and (bm % self.bits == 0)])
+            bms = [256, 128, 512, 1024, 320, 640]
+        bns = [8, 16, 32, 64]
+        kfactors = [8, 16]
+
+        cfg.define_knob("bm", [bm for bm in bms if (M % bm == 0) and (bm % self.bits == 0)])
         cfg.define_knob("bn", [8, 16, 32, 64])
         if N <= 8:
             cfg.define_knob("bn", [8])
         else:
-            cfg.define_knob("bn", [bn for bn in self.bns if (N % bn == 0)])
+            cfg.define_knob("bn", [bn for bn in bns if (N % bn == 0)])
+        if not self.do_scale_final(K):
+            w_group_size = self.group_size if self.m_groups == -1 else K
+            kfactors = [k for k in kfactors if ((k * self.g) % self.act_group_size == 0) and (w_group_size % (k * self.g) == 0)]
         cfg.define_knob("kfactor", kfactors)
         super()._define_config(cfg)
 

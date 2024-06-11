@@ -651,7 +651,7 @@ inline int32_t tbl_g4_int8_int16_update_impl(int32_t m, int16_t* c, int8_t* lut,
 
 // TODO: refactor function naming
 #define tbl_g4_float_float_update(s, k, b, ak, fa, z, os)                                                                                                       \
-    int32_t tbl_g4_float_float_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa##_z##z_os##os(int32_t m, void* c, void* lut, uint8_t* a, void* scales) {  \
+    int32_t tbl_g4_float_float_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa##_z##z##_os##os(int32_t m, void* c, void* lut, uint8_t* a, void* scales) {  \
         return tbl_g4_float_float_update_impl<s, k, b>(m, (float_type*)c, (float_type*)lut, a, (float_type*)scales);                                                                            \
     }
 
@@ -661,12 +661,12 @@ inline int32_t tbl_g4_int8_int16_update_impl(int32_t m, int16_t* c, int8_t* lut,
     }
 
 #define tbl_g4_int8_int32_update(s, k, b, ak, fa, z, os)                                                                            \
-    int32_t tbl_g4_int8_int32_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa##_z##z_os##os(int32_t m, int32_t* c, int8_t* lut, uint8_t* a) {  \
+    int32_t tbl_g4_int8_int32_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa##_z##z##_os##os(int32_t m, int32_t* c, int8_t* lut, uint8_t* a) {  \
         return tbl_g4_int8_int32_update_impl<k, b>(m, c, lut, a);                                                        \
     }
 
 #define tbl_g4_int8_int16_update(s, k, b, ak, fa, z, os)                                                                            \
-    int32_t tbl_g4_int8_int16_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa##_z##z_os##os(int32_t m, int16_t* c, int8_t* lut, uint8_t* a) {  \
+    int32_t tbl_g4_int8_int16_update_s##s##_k##k##_b##b##_ak##ak##_fa##fa##_z##z##_os##os(int32_t m, int16_t* c, int8_t* lut, uint8_t* a) {  \
         return tbl_g4_int8_int16_update_impl<k, b>(m, c, lut, a);                                                        \
     }
 
