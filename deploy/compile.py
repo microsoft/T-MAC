@@ -30,12 +30,16 @@ BMKNs = [
     # [2, 11008, 4096, 1, -1],
     # [2, 4096, 11008, 1, -1],
     # BitNet 3B
-    [2, 3200, 800, 1, 1],
-    [2, 3200, 3200, 1, 1],
-    [2, 3200, 10240, 1, 1],
-    [2, 10240, 3200, 1, 1],
-    [2, 800, 3200, 1, 1],
+    # [2, 3200, 800, 1, 1],
+    # [2, 3200, 3200, 1, 1],
+    # [2, 3200, 10240, 1, 1],
+    # [2, 10240, 3200, 1, 1],
+    # [2, 800, 3200, 1, 1],
     # [4, 100827, 3200, 1, 1],
+    # Huggingface BitNet
+    [2, 3200, 8640, 1, 1],
+    [2, 8640, 3200, 1, 1],
+    [2, 3200, 3200, 1, 1],
 ]
 
 
@@ -166,7 +170,7 @@ def compile(
         }
 
         if FLAGS.fast_aggregation:
-            if qgemm_lut.do_scale_final:
+            if qgemm_lut.do_scale_final(K):
                 fast_aggregation_k = qgemm_lut.kfactor
             else:
                 fast_aggregation_k = FLAGS.act_group_size // 4

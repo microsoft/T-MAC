@@ -689,6 +689,11 @@ int32_t tbl_int32_reset(int32_t m, int32_t* c) {
     return 0;
 }
 
+int32_t tbl_int16_reset(int32_t m, int16_t* c) {
+    memset(c, 0, m * sizeof(int16_t));
+    return 0;
+}
+
 #ifdef __cplusplus
 }
 #endif

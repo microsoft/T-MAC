@@ -19,7 +19,7 @@ def preprocess_weights(
     w : np.ndarray
         Quantized weights of shape (M, K) and type "uint8"
     scales: np.ndarray
-        Quantization scales of shape (M, K // group_size)
+        Quantization scales of shape (M, K // group_size) or (m_groups,)
     bits: int
         Number of bits for each quantized element
     g: int
@@ -41,7 +41,6 @@ def preprocess_weights(
 
     M, K = w.shape
     M = M * bits
-    group_size = K // scales.shape[1]
     ngroups_per_elem = 8 // g
 
     # (M // bits, K, bits)
@@ -63,9 +62,11 @@ def preprocess_weights(
     # input size of current TVM API
     w = w.reshape(M // bm, K // g, bm // ngroups_per_elem)
 
-    scales = scales.reshape(M // bm, bm // bits, K // group_size).transpose(0, 2, 1)
-    scales = scales.reshape(M // bm, K // group_size, bm // bits // simd_n_out, simd_n_out)
-    # input size of current TVM API
-    scales = scales.reshape(M // bm, K // group_size, bm // bits)
+    if scales.size >= M // bits:
+        group_size = K // scales.shape[1]
+        scales = scales.reshape(M // bm, bm // bits, K // group_size).transpose(0, 2, 1)
+        scales = scales.reshape(M // bm, K // group_size, bm // bits // simd_n_out, simd_n_out)
+        # input size of current TVM API
+        scales = scales.reshape(M // bm, K // group_size, bm // bits)
 
     return w, scales

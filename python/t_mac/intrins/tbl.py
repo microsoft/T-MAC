@@ -150,7 +150,7 @@ def tbl(
             ib.emit(
                 tvm.tir.call_extern(
                     "int32",
-                    f"tbl_{to_intrinstr(out_dtype)}_reset",
+                    f"tbl_{to_intrinstr(out_dtype if not do_scale_final else aggregation_dtype)}_reset",
                     m,
                     c_buffer.access_ptr("w"),
                 )

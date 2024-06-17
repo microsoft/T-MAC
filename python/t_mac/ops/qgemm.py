@@ -169,7 +169,7 @@ class QGeMMLUTBitsCodegen(OpCodegen):
             def _scale_first(m, n, k, lut_val):
                 return lut_val.astype(self.aggregation_dtype)
             def _scale_final(m, n, cbits_sum):
-                return _lut_scale(n, 0, cbits_sum.astype(self.out_dtype)) * _get_scale(m, k)
+                return _lut_scale(n, 0, cbits_sum) * _get_scale(m, k)
 
         mask = te.const((1 << self.g) - 1, dtype=self.weight_dtype)
 
@@ -196,10 +196,10 @@ class QGeMMLUTBitsCodegen(OpCodegen):
                         te.indexdiv(m, self.simd_n_out) * self.simd_n_out * self.bits
                             + te.indexmod(m, self.simd_n_out)
                             + b * self.simd_n_out
-                    ] * alphas[b]
+                    ].astype("float32") * alphas[b]
                     for b in range(self.bits)
                 ]),
-            ),
+            ).astype(self.out_dtype),
             name="C",
         )
 
