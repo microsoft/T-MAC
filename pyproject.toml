@@ -1,15 +1,22 @@
 [project]
 name = "t-mac"
-version = "1.0.0"
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 license = {file = "LICENSE"}
 classifiers = [
   "Development Status :: 3 - Alpha",
 ]
+dynamic = ["version", "dependencies"]
+authors = [
+  {name = "Microsoft Research"}
+]
 
 [build-system]
-requires = ["setuptools>=43.0.0", "wheel"]
+requires = [
+  "setuptools",
+  "wheel",
+  "cmake",
+]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
@@ -18,3 +25,7 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["python"]
+
+[tool.setuptools.dynamic]
+version = {attr = "t_mac.version.__version__"}
+dependencies = {file = ["requirements.txt"]}
