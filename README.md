@@ -50,7 +50,7 @@ Our kernels demonstrate superior performance over SOTA low-bit GEMM on CPU. The 
 
 > llama.cpp doesn't provide 1-bit kernel implementation, but we can deduce it from the 2-bit, as it won't bring additional speedup according to the 2/3/4-bit results.
 
-Although we haven't integrated multi-batch (N>1) GEMM into llama.cpp, T-MAC can achieve significant speedup due to reduced computaional cost, which ensures superior performance on prompt evaluation and multi-batch token generation (NUM_THREADS=1). The following figures shows the speedup compared to llama.cpp using OpenBLAS backend (NUM_THREADS=1):
+Although we haven't integrated multi-batch (N>1) GEMM into llama.cpp, T-MAC can achieve significant speedup due to reduced computaional cost, which ensures superior performance on prompt evaluation and multi-batch token generation. The following figures shows the speedup compared to llama.cpp using OpenBLAS backend (NUM_THREADS=1):
 
 ![](assets/gemm.png)
 
