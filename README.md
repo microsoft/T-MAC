@@ -1,12 +1,68 @@
 # T-MAC
 
+demo_gif
+
 ## Introduction
 
-T-MAC is a kernel library supporting mixed-precission GeMM on CPUs.
+T-MAC is a kernel library to directly support mixed-precision matrix multiplication without the need for dequantization by utilizing lookup tables. T-MAC aims to boost low-bit LLM inference on CPUs. T-MAC already offers support for various low-bit models, including W4A16 from GPTQ/gguf, W2A16 from [BitDistiller](https://github.com/DD-DuDa/BitDistiller) and W1(.58)A8 from [BitNet](https://huggingface.co/1bitLLM/bitnet_b1_58-3B) on OSX/Linux/Windows equipped with ARM/Intel CPUs.
 
-LLM inference incurs significant computational cost. Low-bit quantization, a widely adopted technique, introduces the challenge of mixed-precision GeMM (mpGeMM), which is not directly supported by hardware and requires convert/dequant operations.
+T-MAC achieves a token generation throughput of 22 tokens/sec with a single core and 54 tokens/sec with four cores on M2-Ultra for 3B BitNet, which is a 3x speedup compared to SOTA CPU low-bit framework ([llama.cpp](https://github.com/ggerganov/llama.cpp)). T-MAC can even reach 11 tokens/sec on lower-end devices like Raspberry Pi 5.
 
-We propose the use of a lookup table (LUT) to support mpGeMM. Our method involves the following key technniques:
+## End-2-End Speedup
+
+We evaluate the token generation performance of difference models on four different devices: Apple M2-Ultra, Jetson AGX Orin, Raspberry Pi 5 and Surface Book 3.
+
+| Model              | Device         | NUM_THREADS | llama.cpp (CPU) (tokens/sec) | T-MAC (CPU) |
+|--------------------|----------------|-------------|------------------------------|-------------|
+| BitNet-3B          | M2-Ultra       | 1           | 6.49                         | 22.08       |
+| BitNet-3B          | M2-Ultra       | 4           | 22.09                        | 54.46       |
+| Llama-2-7B (W2)    | M2-Ultra       | 1           | 3.82                         | 16.68       |
+| Llama-2-7B (W2)    | M2-Ultra       | 8           | 22.06                        | 51.01       |
+| Llama-2-7B (W4)    | M2-Ultra       | 1           | 5.65                         | 8.97        |
+| Llama-2-7B (W4)    | M2-Ultra       | 8           | 31.57                        | 35.65       |
+|                    |                |             |                              |             |
+| BitNet-3B          | AGX Orin       | 1           | 1.62                         | 8.18        |
+| BitNet-3B          | AGX Orin       | 12          | 12.34                        | 26.02       |
+| Llama-2-7B (W2)    | AGX Orin       | 1           | 0.79                         | 4.36        |
+| Llama-2-7B (W2)    | AGX Orin       | 12          | 7.08                         | 15.62       |
+| Llama-2-7B (W4)    | AGX Orin       | 1           | 1.04                         | 2.46        |
+| Llama-2-7B (W4)    | AGX Orin       | 12          | 7.42                         | 8.09        |
+|                    |                |             |                              |             |
+| BitNet-3B          | Raspberry Pi 5 | 1           | 1.37                         | 8.03        |
+| BitNet-3B          | Raspberry Pi 5 | 2           | 2.71                         | 11.09       |
+| Llama-2-7B (W2)    | Raspberry Pi 5 | 1           | 0.66                         | 4.40        |
+| Llama-2-7B (W2)    | Raspberry Pi 5 | 2           | 1.31                         | 5.92        |
+| Llama-2-7B (W4)    | Raspberry Pi 5 | 1           | 0.85                         | 2.42        |
+| Llama-2-7B (W4)    | Raspberry Pi 5 | 2           | 1.63                         | 3.35        |
+|                    |                |             |                              |             |
+| BitNet-3B          | Surface Book 3 | 1           | 5.65                         | 12.65       |
+| BitNet-3B          | Surface Book 3 | 4           | 14.85                        | 28.60       |
+| Llama-2-7B (W2)    | Surface Book 3 | 1           | 2.70                         | 6.77        |
+| Llama-2-7B (W2)    | Surface Book 3 | 4           | 7.50                         | 16.82       |
+| Llama-2-7B (W4)    | Surface Book 3 | 1           | 2.50                         | 3.74        |
+| Llama-2-7B (W4)    | Surface Book 3 | 4           | 6.52                         | 9.34        |
+
+## Kernel-level Speedup
+
+Our kernels demonstrate superior performance over SOTA low-bit GEMM on CPU. The following figure shows the speedup compared to llama.cpp for llama-7b kernels during token generation (NUM_THREADS=1):
+
+![](assets/gemv_t1.png)
+
+> llama.cpp doesn't provide 1-bit kernel implementation, but we can deduce it from the 2-bit, as it won't bring additional speedup according to the 2/3/4-bit results.
+
+Although we haven't integrated multi-batch (N>1) GEMM into llama.cpp, T-MAC can achieve significant speedup due to reduced computaional cost, which ensures superior performance on prompt evaluation and multi-batch token generation (NUM_THREADS=1). The following figures shows the speedup compared to llama.cpp using OpenBLAS backend (NUM_THREADS=1):
+
+![](assets/gemm.png)
+
+## Usage
+
+TODO
+
+## Techniques
+
+LLM inference incurs significant computational cost. Low-bit quantization, a widely adopted technique, introduces the challenge of mixed-precision GEMM (mpGEMM), which is not directly supported by hardware and requires convert/dequant operations.
+
+We propose the use of a lookup table (LUT) to support mpGEMM. Our method involves the following key technniques:
 
 1. Given the low precision of weights, we group one-bit weights (e.g., into groups of 4), precompute all possible partial sums, and then use a LUT to store them.
 2. We employ shift and accumulate operations to support scalable bits from 1 to 4.
@@ -15,53 +71,9 @@ We propose the use of a lookup table (LUT) to support mpGeMM. Our method involve
 
 Our method exhibits several notable characteristics:
 
-1. It shows a linear scaling ratio of FLOPs and inference latency relative to the number of bits. This contrasts with traditional convert-based methods, which fail to achieve additional speedup when reducing from 4 bits to lower bits.
+1. T-MAC shows a linear scaling ratio of FLOPs and inference latency relative to the number of bits. This contrasts with traditional convert-based methods, which fail to achieve additional speedup when reducing from 4 bits to lower bits.
 2. T-MAC inherently supports bit-wise computation for int1/2/3/4, eliminating the need for dequantization. Furthermore, it accommodates all types of activations (e.g., fp8, fp16, int8) using fast table lookup and add instructions, bypassing the need for poorly supported fused-multiply-add instructions.
 3. T-MAC holds the potential to realize performance gains across all processing units (PUs).
-
-## Speedup to SOTA Low-Bit GeMM
-
-Our kernels demonstrate superior performance over SOTA low-bit GeMM on CPU. Due to the linear scaling characteristic of T-MAC, our kernels deliver improved results at 2 bits, even surpassing the performance of Metal GPUs.
-
-The following table shows the speedup on M2-Ultra compared to llama.cpp for llama-7b kernels during token generation (NUM_THREADS=16):
-
-| Bits | M     | N | K     | T-MAC (CPU) (ms) | llama.cpp (CPU) | llama.cpp (METAL GPU) |
-|------|-------|---|-------|-------------|-----------------|-------------------|
-| 4    | 12288 | 1 | 4096  | 0.059  | 0.096         | 0.033           |
-| 4    | 4096  | 1 | 4096  | 0.022 | 0.034         | 0.014            |
-| 4    | 11008 | 1 | 4096  | 0.053 | 0.093         | 0.030           |
-| 4    | 4096  | 1 | 11008 | 0.052 | 0.091         | 0.031           |
-|      |       |   |       |             |                 |                   |
-| 2    | 12288 | 1 | 4096  | 0.031 | 0.117          | 0.039           |
-| 2    | 4096  | 1 | 4096  | 0.013   | 0.048          | 0.016           |
-| 2    | 11008 | 1 | 4096  | 0.029 | 0.105         | 0.035           |
-| 2    | 4096  | 1 | 11008 | 0.028    | 0.116         | 0.037           |
-
-![](assets/gemm.png)
-
-## E2E Speedup to llama.cpp
-
-By integrating T-MAC kernels to llama.cpp, we obtain the following table to show the speedup on M2-Ultra for llama-7b duing token generation (NUM_THREADS=1):
-
-| Model      | Bits | T-MAC (CPU) (tokens/sec) | llama.cpp (CPU) |
-|------------|------|--------------------------|-----------------|
-| llama-2-7b | 4    | 7.01                     | 5.56            |
-| llama-2-7b | 2    | 16.17                    | 3.63            |
-|            |      |                          |                 |
-| BitNet-3b  | 2    | 24.36                    | 7.38            |
-
-We also profile multi-threading performance for llama-2-7b and llama-2-70b:
-
-| Model       | Bits | threads | T-MAC (CPU) (tokens/sec) | llama.cpp (CPU) |
-|-------------|------|---------|--------------------------|-----------------|
-| llama-2-7b  | 4 | 1 | 7.01  | 5.63  |
-| llama-2-7b  | 4 | 2 | 13.16 | 10.23 |
-| llama-2-7b  | 4 | 4 | 23.42 | 19.73 |
-| llama-2-7b  | 4 | 8 | 35.12 | 31.75 |
-|             |   |   |       |       |
-| llama-2-70b | 2 | 1  | 1.39	| 0.35 |
-| llama-2-70b | 2 | 8  | 5.78	| 2.39 |
-| llama-2-70b | 2 | 16 | 9.07	| 4.21 |
 
 ## Cite
 If you find this repository useful, please use the following BibTeX entry for citation.
@@ -74,7 +86,7 @@ If you find this repository useful, please use the following BibTeX entry for ci
 }
 ```
 
-## Usage
+## Usage (Deprecated)
 
 We currently supports mainstream int4 quantization (e.g., GGUF, GPTQ) on ARM CPU (e.g., M1/M2 Mac, Snapdragon CPUs) and Intel CPU (with AVX2).
 
@@ -139,13 +151,3 @@ Get the test model `llama-2-7b-chat-Q4_0.gguf` from https://huggingface.co/TheBl
 ```
 
 > Add `LD_LIBRARY_PATH=/path/to/conda/envs/tvm-build/${arch}/lib:${LD_LIBRARY_PATH}` before `./bin/llama-bench` if you are using clang from conda and encounter errors like version `GLIBCXX_3.4.32' not found`
-
-## TODO List
-
-- [ ] Add demo gif to demonstrate e2e speedup
-- [x] Pre-built release
-- [x] Add llama.cpp build instructions
-- [x] BitNet kernel support
-- [ ] BitNet E2E integration
-- [x] Intel CPU support
-- [ ] Release performance data for more devices
