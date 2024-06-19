@@ -1,6 +1,6 @@
 # T-MAC
 
-demo_gif
+![](assets/demo.gif)
 
 ## Introduction
 
