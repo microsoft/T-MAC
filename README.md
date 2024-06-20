@@ -2,7 +2,7 @@
 
 <h3 align="center">
     <img src="assets/demo.gif">
-    <p>T-MAC (LUT-based) vs llama.cpp (dequantization-based)</p>
+    <p><a href=https://huggingface.co/1bitLLM/bitnet_b1_58-3B>BitNet</a> on T-MAC (LUT-based) vs llama.cpp (dequantization-based)</p>
 </h3>
 
 
