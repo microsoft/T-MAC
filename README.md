@@ -1,6 +1,10 @@
 # T-MAC
 
-![](assets/demo.gif)
+<h3 align="center">
+    <img src="assets/demo.gif">
+    <p>T-MAC (LUT-based) vs llama.cpp (dequantization-based)</p>
+</h3>
+
 
 ## Introduction
 
@@ -10,7 +14,7 @@ T-MAC achieves a token generation throughput of 22 tokens/sec with a single core
 
 ## End-2-End Speedup
 
-We evaluate the token generation performance of difference models on four different devices: Apple M2-Ultra, Jetson AGX Orin, Raspberry Pi 5 and Surface Book 3.
+We evaluate the token generation performance of different models on four different devices: Apple M2-Ultra, Jetson AGX Orin, Raspberry Pi 5 and Surface Book 3.
 
 > We evaluate BitNet-3B and Llama-2-7B (W2) with T-MAC 2-bit and llama.cpp Q2_K, and evaluate Llama-2-7B (W4) with T-MAC 4-bit and llama.cpp Q4_0.
 
