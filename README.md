@@ -75,7 +75,7 @@ By replacing heavy fused-multiply-add instructions with table lookup instruction
 
 ### Compared to CUDA GPU
 
-T-MAC achievess comparable 2-bit mpGEMM performance compared to CUDA GPU on Jetson AGX Orin. While the CUDA GPU outperforms the CPU in executing kernels other than mpGEMM, making the end-to-end performance of T-MAC (CPU) slightly slower, T-MAC can deliver considerable savings in power and energy consumption.
+T-MAC achieves comparable 2-bit mpGEMM performance compared to CUDA GPU on Jetson AGX Orin. While the CUDA GPU outperforms the CPU in executing kernels other than mpGEMM, making the end-to-end performance of T-MAC (CPU) slightly slower, T-MAC can deliver considerable savings in power and energy consumption.
 
 | Framework       | Throughput (tokens/sec) | Power (W)   | Energy (J/token) |
 |-----------------|:------------------------|:------------|:-----------------|
@@ -84,7 +84,7 @@ T-MAC achievess comparable 2-bit mpGEMM performance compared to CUDA GPU on Jets
 | T-MAC (CPU)     |         15.62           | <b>10.4</b> | <b>0.66</b>      |
 
 <p align="center">
-<b>Throghput/power/energy comparison for Llama-2-7B (W2) on NVIDIA Jetson AGX Orin </b>
+<b>Throughput/power/energy comparison for Llama-2-7B (W2) on NVIDIA Jetson AGX Orin (NUM_THREADS=12 for CPU)</b>
 </p>
 
 > Data sampled with [jetson-stats](https://github.com/rbonghi/jetson_stats) under power mode MAXN.
