@@ -60,6 +60,8 @@ Although we haven't integrated multi-batch (N>1) GEMM into llama.cpp, T-MAC can 
 
 ![](assets/gemm.png)
 
+> M2-Ultra is an exception as it is equipped with a specially designed [AMX coprocessor](https://github.com/corsix/amx) to accelerate multi-batch GEMM. However, T-MAC can still achieve comparable performance at 2-bit.
+
 ## Usage
 
 TODO
