@@ -50,7 +50,7 @@ We evaluate the token generation performance of different models on four differe
 
 ## Kernel-level Speedup
 
-Our kernels demonstrate superior performance over SOTA low-bit GEMM on CPU. The following figure shows the speedup compared to llama.cpp for llama-7b kernels during token generation (NUM_THREADS=1):
+Our GEMM kernels demonstrate superior performance over SOTA low-bit GEMM on CPU. The following figure shows the speedup compared to llama.cpp for llama-7b kernels during token generation (NUM_THREADS=1):
 
 ![](assets/gemv_t1.png)
 
@@ -61,6 +61,33 @@ Although we haven't integrated multi-batch (N>1) GEMM into llama.cpp, T-MAC can 
 ![](assets/gemm.png)
 
 > M2-Ultra is an exception as it is equipped with a specially designed [AMX coprocessor](https://github.com/corsix/amx) to accelerate multi-batch GEMM. However, T-MAC can still achieve comparable performance at 2-bit.
+
+## Energy and Power Saving
+
+By replacing heavy fused-multiply-add instructions with table lookup instructions, T-MAC significantly reduces power consumption. Combined with the speedup, T-MAC ultimately results in a substantial decrease in total energy consumption.
+
+<p align="center">
+    <img src="assets/e2e_power.png">
+    <p align="center">Multi-threading power/energy consumption on M2-Ultra for three models, M1: Llama-2-7B (W4), M2: Llama-2-7B (W2) and M3: BitNet-3B</p>
+</p>
+
+> Data sampled with [powermetrics](https://www.unix.com/man-page/osx/1/powermetrics/).
+
+### Compared to CUDA GPU
+
+T-MAC achievess comparable 2-bit mpGEMM performance compared to CUDA GPU on Jetson AGX Orin. While the CUDA GPU outperforms the CPU in executing kernels other than mpGEMM, making the end-to-end performance of T-MAC (CPU) slightly slower, T-MAC can deliver considerable savings in power and energy consumption.
+
+| Framework       | Throughput (tokens/sec) | Power (W)   | Energy (J/token) |
+|-----------------|:------------------------|:------------|:-----------------|
+| llama.cpp (CPU) |         7.08            |     15.0    | 2.12             |
+| llama.cpp (GPU) |        <b>20.03</b>     |     30.8    | 1.54             |
+| T-MAC (CPU)     |         15.62           | <b>10.4</b> | <b>0.66</b>      |
+
+<p align="center">
+<b>Throghput/power/energy comparison for Llama-2-7B (W2) on NVIDIA Jetson AGX Orin </b>
+</p>
+
+> Data sampled with [jetson-stats](https://github.com/rbonghi/jetson_stats) under power mode MAXN.
 
 ## Usage
 
