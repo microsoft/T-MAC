@@ -20,6 +20,7 @@ def profile_codegen(
     target: str,
     remote_kwargs: Optional[dict] = None,
     dtype: str = "int8",
+    cc: Optional[str] = None,
     cc_opts: Optional[list] = None,
     eval_kwargs: Optional[dict] = None,
     out_dtype: str = "float16",
@@ -40,17 +41,17 @@ def profile_codegen(
         "dtype": dtype,
         "target": target,
         "save_dir": FLAGS.out_path,
-        "verify": False,
+        "verify": True,
         "target_host": target_host,
         "tune": FLAGS.tune,
         "reuse_tuned": FLAGS.reuse_tuned,
         "remote_kwargs": remote_kwargs,
         "bits": bits,
+        "cc": cc,
         "cc_opts": cc_opts,
         "out_dtype": out_dtype,
         "act_group_size": FLAGS.act_group_size if FLAGS.act_group_size != -1 else K,
         "num_threads": num_threads,
-        "zero_point": False,
     }
 
     if target == "opencl":
@@ -76,6 +77,7 @@ def profile_codegen(
             "fast_aggregation": FLAGS.fast_aggregation,
             "m_groups": m_groups,
             "aggregation_dtype": aggregation_dtype,
+            "zero_point": False,
         },
         "preprocessor": {
             "M": M,
@@ -143,11 +145,15 @@ def main():
         # [28672, 8192, 256],
         # [8192, 28672, 256],
         # BitNet 3B
-        [3200, 800, 1],
+        # [3200, 800, 1],
+        # [3200, 3200, 1],
+        # [3200, 10240, 1],
+        # [10240, 3200, 1],
+        # [800, 3200, 1],
+        # Huggingface BitNet 3B
+        [3200, 8640, 1],
+        [8640, 3200, 1],
         [3200, 3200, 1],
-        [3200, 10240, 1],
-        [10240, 3200, 1],
-        [800, 3200, 1],
     ]
 
     threads = [

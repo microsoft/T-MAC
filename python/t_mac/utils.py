@@ -1,6 +1,11 @@
 import os
 import copy
 import numpy as np
+import subprocess
+
+
+def get_osx_sdk_root():
+    return subprocess.check_output(["xcrun", "--show-sdk-path"]).decode().splitlines()[0]
 
 
 _device_kwargs = {
@@ -10,15 +15,15 @@ _device_kwargs = {
             "min_repeat_ms": 50,
             "repeat": 100,
         },
-        "remote_kwargs": {
-            "key": "local",
-            "host": os.environ.get("TVM_TRACKER_HOST", "0.0.0.0"),
-            "port": int(os.environ.get("TVM_TRACKER_PORT", 9190)),
-            "build_func": "default",
-            "timeout": 600,
-        },
-        # "remote_kwargs": None,
-        "cc_opts": ["-O3", "-std=c++17", "-mcpu=apple-m2", "-mllvm", "-inline-threshold=10000"],
+        # "remote_kwargs": {
+        #     "key": "local",
+        #     "host": os.environ.get("TVM_TRACKER_HOST", "0.0.0.0"),
+        #     "port": int(os.environ.get("TVM_TRACKER_PORT", 9190)),
+        #     "build_func": "default",
+        #     "timeout": 600,
+        # },
+        "remote_kwargs": None,
+        "cc_opts": ["-O3", "-std=c++17", "-mcpu=apple-m2", "-mllvm", "-inline-threshold=10000", "-isysroot", get_osx_sdk_root()],
         "out_dtype": "float16",
         "aggregation_dtype": "int32",
     },

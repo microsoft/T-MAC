@@ -7,8 +7,7 @@ from setuptools import setup
 from setuptools.command.install import install
 from setuptools.command.build_py import build_py
 from setuptools.command.sdist import sdist
-import distutils.dir_util
-from typing import List, Tuple
+from typing import Tuple
 import tarfile
 from io import BytesIO
 import os
@@ -17,7 +16,7 @@ import platform
 
 ROOT_DIR = os.path.dirname(__file__)
 SUPPORTED_SYSTEM = [
-    ("darwin", "arm"),
+    ("Darwin", "arm"),
     # TODO: test and add linux/win, intel cpu
 ]
 LLVM_VERSION = "17.0.6"
@@ -29,15 +28,20 @@ def get_path(*filepath) -> str:
 
 def get_system_info() -> Tuple[str, str]:
     """Get OS and processor architecture"""
-    system = platform.system().lower()
+    system = platform.system()
     processor = platform.processor()
     return system, processor
+
+
+def is_win() -> bool:
+    """Check if is windows or not"""
+    return get_system_info()[0] != "Windows"
 
 
 assert get_system_info() in SUPPORTED_SYSTEM, "T-MAC hasn't supported your operating system or CPU"
 
 
-def download_and_extract_llvm(llvm_version, extract_path="3rdparty"):
+def download_and_extract_llvm(llvm_version, extract_path="build"):
     """
     Downloads and extracts the specified version of LLVM for the given platform.
     Args:
@@ -58,7 +62,7 @@ def download_and_extract_llvm(llvm_version, extract_path="3rdparty"):
     darwin_version = darwin_versions.get(llvm_version, "22.0")
 
     file_prefix = {
-        ("darwin", "arm"): f"arm64-apple-darwin{darwin_version}.tar.xz",
+        ("Darwin", "arm"): f"arm64-apple-darwin{darwin_version}.tar.xz",
     }
 
     base_url = (f"https://github.com/llvm/llvm-project/releases/download/llvmorg-{llvm_version}")
@@ -127,65 +131,30 @@ def setup_llvm_for_tvm():
     return extract_path, llvm_config_path
 
 
-class TMACInstallCommand(install):
-    """Customized setuptools install command - builds TVM after setting up LLVM."""
-
-    def run(self):
-        # Recursively update submodules
-        # update_submodules()
-        # Set up LLVM for TVM
-        _, llvm_path = setup_llvm_for_tvm()
-        # Build TVM
-        build_tvm(llvm_path)
-        # Continue with the standard installation process
-        install.run(self)
-
-
 class TMACBuilPydCommand(build_py):
     """Customized setuptools install command - builds TVM after setting up LLVM."""
 
     def run(self):
-        build_py.run(self)
         # custom build tvm
         update_submodules()
         # Set up LLVM for TVM
         _, llvm_path = setup_llvm_for_tvm()
         # Build TVM
         build_tvm(llvm_path)
-        # Copy the built TVM to the package directory
-        TVM_PREBUILD_ITEMS = [
-            "3rdparty/tvm/build/libtvm_runtime.so",
-            "3rdparty/tvm/build/libtvm.so",
-            "3rdparty/tvm/build/libtvm_runtime.dylib",
-            "3rdparty/tvm/build/libtvm.dylib",
-            "3rdparty/tvm/python",
-        ]
-        for item in TVM_PREBUILD_ITEMS:
-            source_dir = os.path.join(ROOT_DIR, item)
-            target_dir = os.path.join(self.build_lib, "t_mac", item)
-            if not os.path.exists(source_dir):
-                continue
-            if os.path.isdir(source_dir):
-                self.mkpath(target_dir)
-                distutils.dir_util.copy_tree(source_dir, target_dir)
-            else:
-                target_dir = os.path.dirname(target_dir)
-                if not os.path.exists(target_dir):
-                    os.makedirs(target_dir)
-                shutil.copy2(source_dir, target_dir)
+        build_py.run(self)
 
+        llvm_bin_path = os.path.abspath(os.path.dirname(llvm_path))
+        tvm_python_path = os.path.abspath(os.path.join("3rdparty/tvm", "python"))
 
-class TMACSdistCommand(sdist):
-    """Customized setuptools sdist command - includes the pyproject.toml file."""
-
-    def make_distribution(self):
-        super().make_distribution()
+        envs = "export PATH={}:$PATH\nexport PYTHONPATH={}:$PYTHONPATH\n".format(llvm_bin_path, tvm_python_path)
+        env_file_path = os.path.abspath(os.path.join("build", "t-mac-envs.sh"))
+        with open(env_file_path, "w") as env_file:
+            env_file.write(envs)
+        print("Installation success. Please set environment variables through `source {}`".format(env_file_path))
 
 
 setup(
     cmdclass={
-        "install": TMACInstallCommand,
         "build_py": TMACBuilPydCommand,
-        "sdist": TMACSdistCommand,
     },
 )

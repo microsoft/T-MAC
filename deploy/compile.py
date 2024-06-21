@@ -15,38 +15,43 @@ from tvm import relay
 logger = logging.getLogger("compile")
 
 
-# Please set for more configs
-BMKNs = [
-    # llama-7b-4bit
-    # M, K, N, m_groups
-    # [4, 12288, 4096, 1, -1],
-    # [4, 4096, 4096, 1, -1],
-    # [4, 11008, 4096, 1, -1],
-    # [4, 4096, 11008, 1, -1],
-    # llama-7b-2bit
-    # M, K, N, m_groups
-    # [2, 12288, 4096, 1, -1],
-    # [2, 4096, 4096, 1, -1],
-    # [2, 11008, 4096, 1, -1],
-    # [2, 4096, 11008, 1, -1],
-    # BitNet 3B
-    # [2, 3200, 800, 1, 1],
-    # [2, 3200, 3200, 1, 1],
-    # [2, 3200, 10240, 1, 1],
-    # [2, 10240, 3200, 1, 1],
-    # [2, 800, 3200, 1, 1],
-    # [4, 100827, 3200, 1, 1],
-    # Huggingface BitNet
-    [2, 3200, 8640, 1, 1],
-    [2, 8640, 3200, 1, 1],
-    [2, 3200, 3200, 1, 1],
-]
+PRESET_KERNELS = {
+    "llama-2-7b-4bit": [
+        # bits, M, K, N, m_groups
+        [4, 12288, 4096, 1, -1],
+        [4, 4096, 4096, 1, -1],
+        [4, 11008, 4096, 1, -1],
+        [4, 4096, 11008, 1, -1],
+    ],
+    "llama-2-7b-2bit": [
+        [2, 12288, 4096, 1, -1],
+        [2, 4096, 4096, 1, -1],
+        [2, 11008, 4096, 1, -1],
+        [2, 4096, 11008, 1, -1],
+    ],
+    "hf-bitnet-3b": [
+        [2, 3200, 8640, 1, 1],
+        [2, 8640, 3200, 1, 1],
+        [2, 3200, 3200, 1, 1],
+    ],
+    "ms-bitnet-3b": [
+        [2, 3200, 800, 1, 1],
+        [2, 3200, 3200, 1, 1],
+        [2, 3200, 10240, 1, 1],
+        [2, 10240, 3200, 1, 1],
+        [2, 800, 3200, 1, 1],
+    ],
+    "test": [
+        # Add customized kernels here
+    ],
+}
 
 
 def compile(
     target: str,
     remote_kwargs: Optional[dict] = None,
     dtype: str = "int8",
+    cc: Optional[str] = None,
     cc_opts: Optional[list] = None,
     eval_kwargs: Optional[dict] = None,
     out_dtype: str = "float16",
@@ -66,6 +71,7 @@ def compile(
         "tune": FLAGS.tune,
         "reuse_tuned": FLAGS.reuse_tuned,
         "remote_kwargs": remote_kwargs,
+        "cc": cc,
         "cc_opts": cc_opts,
         "out_dtype": out_dtype,
         "act_group_size": FLAGS.act_group_size,
@@ -113,7 +119,7 @@ def compile(
     mod = None
     body_code = ""
     config = configparser.ConfigParser()
-    for bits, M, K, N, m_groups in BMKNs:
+    for bits, M, K, N, m_groups in PRESET_KERNELS[FLAGS.preset_model]:
         qgemm_lut = QGeMMLUTBitsCodegen(
             name="qgemm_lut",
             group_size=FLAGS.group_size,
@@ -226,6 +232,8 @@ def parse_args():
     parser.add_argument("-gs", "--group_size", type=int, default=128)
     parser.add_argument("-ags", "--act_group_size", type=int, default=64, help="-1 for BitNet-like unified scale")
     parser.add_argument("-fa", "--fast_aggregation", action="store_true")
+
+    parser.add_argument("-m", "--preset_model", type=str, choices=PRESET_KERNELS.keys(), default="hf-bitnet-3b")
     return parser.parse_args()
 
 

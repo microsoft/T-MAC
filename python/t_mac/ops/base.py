@@ -29,6 +29,7 @@ class OpCodegen:
             save_dir: str = "",
             target_host: Optional[str] = None,
             remote_kwargs: Optional[dict] = None,
+            cc: Optional[str] = None,
             cc_opts: Optional[list] = None,
             num_threads: int = 4,
     ) -> None:
@@ -42,7 +43,7 @@ class OpCodegen:
         self.target = tvm.target.Target(target, host=target_host)
         self.remote_kwargs = remote_kwargs.copy() if remote_kwargs is not None else None
         self.build_func = self.remote_kwargs.pop("build_func") if remote_kwargs is not None else None
-        self.cc = os.environ.get("TVM_NDK_CC", None) if self.build_func == "ndk" else None
+        self.cc = cc
         self.cc_opts = cc_opts
         self.num_threads = num_threads
         self.extra_cc_header = ""

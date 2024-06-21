@@ -15,7 +15,6 @@ authors = [
 requires = [
   "setuptools",
   "wheel",
-  "cmake",
 ]
 build-backend = "setuptools.build_meta"
 
