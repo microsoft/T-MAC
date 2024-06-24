@@ -15,7 +15,7 @@ import platform
 ROOT_DIR = os.path.dirname(__file__)
 PLATFORM_LLVM_MAP = {
     # (system, processor): (llvm_version, file_suffix)
-    ("Darwin", "arm"): ("17.0.6", "arm64-apple-darwin22.0.tar.xz"),
+    ("Darwin", "arm64"): ("17.0.6", "arm64-apple-darwin22.0.tar.xz"),
     ("Linux", "aarch64"): ("17.0.6", "aarch64-linux-gnu.tar.xz"),
     # TODO: test and add linux/win, intel cpu
 }
@@ -26,16 +26,16 @@ def get_path(*filepath) -> str:
     return os.path.join(ROOT_DIR, *filepath)
 
 
-def get_system_info() -> Tuple[str, str]:
-    """Get OS and processor architecture"""
-    system = platform.system()
-    processor = platform.processor()
-    return system, processor
-
-
 def is_win() -> bool:
     """Check if is windows or not"""
     return get_system_info()[0] != "Windows"
+
+
+def get_system_info() -> Tuple[str, str]:
+    """Get OS and processor architecture"""
+    system = platform.system()
+    processor = platform.machine()
+    return system, processor
 
 
 def download_and_extract_llvm(extract_path="build"):

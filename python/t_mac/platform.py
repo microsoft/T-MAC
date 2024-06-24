@@ -6,7 +6,7 @@ from typing import Tuple, List
 def get_system_info() -> Tuple[str, str]:
     """Get OS and processor architecture"""
     system = platform.system()
-    processor = platform.processor()
+    processor = platform.machine()
     return system, processor
 
 
