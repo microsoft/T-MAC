@@ -13,11 +13,12 @@ import urllib.request
 import platform
 
 ROOT_DIR = os.path.dirname(__file__)
-SUPPORTED_SYSTEM = [
-    ("Darwin", "arm"),
+PLATFORM_LLVM_MAP = {
+    # (system, processor): (llvm_version, file_suffix)
+    ("Darwin", "arm"): ("17.0.6", "arm64-apple-darwin22.0.tar.xz"),
+    ("Linux", "aarch64"): ("17.0.6", "aarch64-linux-gnu.tar.xz"),
     # TODO: test and add linux/win, intel cpu
-]
-LLVM_VERSION = "17.0.6"
+}
 MANUAL_BUILD = bool(int(os.getenv("MANUAL_BUILD", "0")))
 
 
@@ -37,32 +38,19 @@ def is_win() -> bool:
     return get_system_info()[0] != "Windows"
 
 
-def download_and_extract_llvm(llvm_version, extract_path="build"):
+def download_and_extract_llvm(extract_path="build"):
     """
     Downloads and extracts the specified version of LLVM for the given platform.
     Args:
-        version (str): The version of LLVM to download.
-        is_aarch64 (bool): True if the target platform is aarch64, False otherwise.
         extract_path (str): The directory path where the archive will be extracted.
 
     Returns:
         str: The path where the LLVM archive was extracted.
     """
-    ubuntu_versions = {
-        "17.0.6": "22.04",
-    }
-    darwin_versions = {
-        "17.0.6": "22.0",
-    }
-    ubuntu_version = ubuntu_versions.get(llvm_version, "22.04")
-    darwin_version = darwin_versions.get(llvm_version, "22.0")
 
-    file_prefix = {
-        ("Darwin", "arm"): f"arm64-apple-darwin{darwin_version}.tar.xz",
-    }
-
+    llvm_version, file_suffix = PLATFORM_LLVM_MAP[get_system_info()]
     base_url = (f"https://github.com/llvm/llvm-project/releases/download/llvmorg-{llvm_version}")
-    file_name = f"clang+llvm-{llvm_version}-{file_prefix[get_system_info()]}"
+    file_name = f"clang+llvm-{llvm_version}-{file_suffix}"
 
     download_url = f"{base_url}/{file_name}"
 
@@ -111,7 +99,7 @@ def build_tvm(llvm_config_path):
     # Run CMake and make
     try:
         subprocess.check_call(["cmake", ".."])
-        subprocess.check_call(["make", "-j"])
+        subprocess.check_call(["make", "-j4"])
     except subprocess.CalledProcessError as error:
         raise RuntimeError("Failed to build TVM") from error
     finally:
@@ -122,7 +110,7 @@ def build_tvm(llvm_config_path):
 def setup_llvm_for_tvm():
     """Downloads and extracts LLVM, then configures TVM to use it."""
     # Assume the download_and_extract_llvm function and its dependencies are defined elsewhere in this script
-    extract_path = download_and_extract_llvm(LLVM_VERSION)
+    extract_path = download_and_extract_llvm()
     llvm_config_path = os.path.join(extract_path, "bin", "llvm-config")
     return extract_path, llvm_config_path
 
@@ -133,11 +121,11 @@ class TMACBuilPydCommand(build_py):
     def run(self):
         build_py.run(self)
         if not MANUAL_BUILD:
-            if get_system_info() not in SUPPORTED_SYSTEM:
+            if get_system_info() not in PLATFORM_LLVM_MAP:
                 raise RuntimeError(
                     "T-MAC hasn't supported auto-build for your operating system or CPU."
-                    "Please refer to https://github.com/kaleid-liner/T-MAC/blob/main/docs/codegen.md to prepare TVM and Clang+LLVM,"
-                    "and set environment variable MANUAL_BUILD=1 before pip install."
+                    " Please refer to https://github.com/kaleid-liner/T-MAC/blob/main/docs/codegen.md to prepare TVM and Clang+LLVM,"
+                    " and set environment variable MANUAL_BUILD=1 before pip install."
                 )
             # custom build tvm
             update_submodules()

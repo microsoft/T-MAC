@@ -101,7 +101,7 @@ def profile_codegen(
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-o", "--out_path", type=str, default="out")
-    parser.add_argument("-d", "--device", type=str, choices=t_mac.utils.get_devices(), default="m2")
+    parser.add_argument("-d", "--device", type=str, choices=t_mac.utils.get_devices(), default="")
     parser.add_argument("-tgt", "--target", type=str, choices=["llvm", "opencl", "vulkan"], default="llvm")
     parser.add_argument("-ta", "--thread_affinity", type=int, default=1)
     parser.add_argument("-k", "--kernel", type=str, choices=["qgemm_lut", "preprocessor"], default="qgemm_lut")

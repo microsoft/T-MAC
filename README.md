@@ -93,8 +93,9 @@ T-MAC achieves comparable 2-bit mpGEMM performance compared to CUDA GPU on Jetso
 
 ### Requirements
 
-- Python 3.8 (recommended)
+- Python (3.8 recommended)
 - virtualenv
+- cmake>=3.22
 
 ### OSX
 
@@ -111,7 +112,26 @@ Install `t_mac` from the source (please run in a `virtualenv`):
 ```bash
 git clone --recursive https://github.com/microsoft/T-MAC.git
 # in virtualenv
-pip install -e .
+pip install . -v  # or pip install -e . -v
+source build/t-mac-envs.sh
+```
+
+The command will download clang+llvm and build tvm from source. So it might take a bit of time.
+
+### Ubuntu
+
+Install cmake>=3.22 from [Official Page](https://cmake.org/download/) and libtinfo-dev with:
+
+```bash
+sudo apt install libtinfo-dev
+```
+
+Install `t_mac` from the source (please run in a `virtualenv`):
+
+```bash
+git clone --recursive https://github.com/microsoft/T-MAC.git
+# in virtualenv
+pip install . -v  # or pip install -e . -v
 source build/t-mac-envs.sh
 ```
 
