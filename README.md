@@ -91,6 +91,11 @@ T-MAC achieves comparable 2-bit mpGEMM performance compared to CUDA GPU on Jetso
 
 ## Installation
 
+### Requirements
+
+- Python 3.8 (recommended)
+- virtualenv
+
 ### OSX
 
 First, install `cmake`, `zstd` (dependency of llvm) and `libomp` (dependency of tvm). Homebrew is recommended:
@@ -122,7 +127,7 @@ Currently, we supports end-to-end inference through llama.cpp integration.
 
 ### Prepare models
 
-> The following guide use BitNet-3B. We will add instructions how to use other models or even your customized kernels.
+> The following guide use BitNet-3B. We will add instructions how to use GPTQ/GGUF/BitDistiller models or even your customized models.
 
 First, download the model `huggingface-cli download 1bitLLM/bitnet_b1_58-3B --local-dir ${model_dir}`.
 
@@ -136,7 +141,7 @@ Then, compile kernels for the model. There are two options:
 - Compile the kernels yourself:
     ```bash
     cd deploy
-    python compile.py -o tuned -da -d m2 -nt 4 -tb -gc -ags 64 -t -m hf-bitnet-3b
+    python compile.py -o tuned -da -nt 4 -tb -gc -ags 64 -t -m hf-bitnet-3b
     ```
 
 Build T-MAC C++ source:

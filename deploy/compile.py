@@ -218,7 +218,7 @@ def compile(
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-o", "--out_path", type=str, default="out")
-    parser.add_argument("-d", "--device", type=str, choices=get_devices(), default="m2")
+    parser.add_argument("-d", "--device", type=str, choices=get_devices(), default="")
     parser.add_argument("-tgt", "--target", type=str, choices=["llvm", "opencl", "vulkan"], default="llvm")
     parser.add_argument("-t", "--tune", action="store_true")
     parser.add_argument("-r", "--reuse_tuned", action="store_true")

@@ -16,7 +16,7 @@ pip install -e .
 
 Currently, we have integrated T-MAC into llama.cpp on windows/linux/osx.
 
-> We have provided prebuilt kernels at `deploy/tuned/kernels.cc` for fast test. To tune kernels on your own device for maximum performance or generate kernels of different shapes, follow [this document](docs/codegen.md).
+> We have provided prebuilt kernels at `deploy/tuned/kernels.cc` for fast test. To tune kernels on your own device for maximum performance or generate kernels of different shapes, follow [this document](./codegen.md).
 
 If you are using Intel CPUs, first replace prebuilt kernels:
 ```

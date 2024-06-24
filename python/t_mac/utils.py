@@ -1,11 +1,8 @@
 import os
 import copy
 import numpy as np
-import subprocess
 
-
-def get_osx_sdk_root():
-    return subprocess.check_output(["xcrun", "--show-sdk-path"]).decode().splitlines()[0]
+from .platform import get_osx_isysroot, get_system_info
 
 
 _device_kwargs = {
@@ -23,7 +20,7 @@ _device_kwargs = {
         #     "timeout": 600,
         # },
         "remote_kwargs": None,
-        "cc_opts": ["-O3", "-std=c++17", "-mcpu=apple-m2", "-mllvm", "-inline-threshold=10000", "-isysroot", get_osx_sdk_root()],
+        "cc_opts": ["-O3", "-std=c++17", "-mcpu=apple-m2", "-mllvm", "-inline-threshold=10000"] + get_osx_isysroot(),
         "out_dtype": "float16",
         "aggregation_dtype": "int32",
     },
@@ -74,7 +71,14 @@ def get_devices():
     return list(_device_kwargs.keys())
 
 
-def get_default_device_kwargs(device: str):
+_platform_device_default_map = {
+    ("Darwin", "arm"): "m2",
+}
+
+
+def get_default_device_kwargs(device: str = ""):
+    if device == "":
+        device = _platform_device_default_map[get_system_info()]
     return copy.deepcopy(_device_kwargs.get(device, {}))
 
 

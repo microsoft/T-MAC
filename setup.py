@@ -4,9 +4,7 @@
 import subprocess
 import shutil
 from setuptools import setup
-from setuptools.command.install import install
 from setuptools.command.build_py import build_py
-from setuptools.command.sdist import sdist
 from typing import Tuple
 import tarfile
 from io import BytesIO
@@ -20,6 +18,7 @@ SUPPORTED_SYSTEM = [
     # TODO: test and add linux/win, intel cpu
 ]
 LLVM_VERSION = "17.0.6"
+MANUAL_BUILD = bool(int(os.getenv("MANUAL_BUILD", "0")))
 
 
 def get_path(*filepath) -> str:
@@ -36,9 +35,6 @@ def get_system_info() -> Tuple[str, str]:
 def is_win() -> bool:
     """Check if is windows or not"""
     return get_system_info()[0] != "Windows"
-
-
-assert get_system_info() in SUPPORTED_SYSTEM, "T-MAC hasn't supported your operating system or CPU"
 
 
 def download_and_extract_llvm(llvm_version, extract_path="build"):
@@ -135,22 +131,29 @@ class TMACBuilPydCommand(build_py):
     """Customized setuptools install command - builds TVM after setting up LLVM."""
 
     def run(self):
-        # custom build tvm
-        update_submodules()
-        # Set up LLVM for TVM
-        _, llvm_path = setup_llvm_for_tvm()
-        # Build TVM
-        build_tvm(llvm_path)
         build_py.run(self)
+        if not MANUAL_BUILD:
+            if get_system_info() not in SUPPORTED_SYSTEM:
+                raise RuntimeError(
+                    "T-MAC hasn't supported auto-build for your operating system or CPU."
+                    "Please refer to https://github.com/kaleid-liner/T-MAC/blob/main/docs/codegen.md to prepare TVM and Clang+LLVM,"
+                    "and set environment variable MANUAL_BUILD=1 before pip install."
+                )
+            # custom build tvm
+            update_submodules()
+            # Set up LLVM for TVM
+            _, llvm_path = setup_llvm_for_tvm()
+            # Build TVM
+            build_tvm(llvm_path)
 
-        llvm_bin_path = os.path.abspath(os.path.dirname(llvm_path))
-        tvm_python_path = os.path.abspath(os.path.join("3rdparty/tvm", "python"))
+            llvm_bin_path = os.path.abspath(os.path.dirname(llvm_path))
+            tvm_python_path = os.path.abspath(os.path.join("3rdparty/tvm", "python"))
 
-        envs = "export PATH={}:$PATH\nexport PYTHONPATH={}:$PYTHONPATH\n".format(llvm_bin_path, tvm_python_path)
-        env_file_path = os.path.abspath(os.path.join("build", "t-mac-envs.sh"))
-        with open(env_file_path, "w") as env_file:
-            env_file.write(envs)
-        print("Installation success. Please set environment variables through `source {}`".format(env_file_path))
+            envs = "export PATH={}:$PATH\nexport PYTHONPATH={}:$PYTHONPATH\n".format(llvm_bin_path, tvm_python_path)
+            env_file_path = os.path.abspath(os.path.join("build", "t-mac-envs.sh"))
+            with open(env_file_path, "w") as env_file:
+                env_file.write(envs)
+            print("Installation success. Please set environment variables through `source {}`".format(env_file_path))
 
 
 setup(
