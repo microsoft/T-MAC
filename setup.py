@@ -17,6 +17,7 @@ PLATFORM_LLVM_MAP = {
     # (system, processor): (llvm_version, file_suffix)
     ("Darwin", "arm64"): ("17.0.6", "arm64-apple-darwin22.0.tar.xz"),
     ("Linux", "aarch64"): ("17.0.6", "aarch64-linux-gnu.tar.xz"),
+    ("Windows", "AMD64"): ("18.1.6", "x86_64-pc-windows-msvc.tar.xz"),
     # TODO: test and add linux/win, intel cpu
 }
 MANUAL_BUILD = bool(int(os.getenv("MANUAL_BUILD", "0")))
@@ -28,7 +29,7 @@ def get_path(*filepath) -> str:
 
 def is_win() -> bool:
     """Check if is windows or not"""
-    return get_system_info()[0] != "Windows"
+    return get_system_info()[0] == "Windows"
 
 
 def get_system_info() -> Tuple[str, str]:
@@ -95,11 +96,17 @@ def build_tvm(llvm_config_path):
         shutil.copy("../cmake/config.cmake", "config.cmake")
     # Set LLVM path and enable CUDA in config.cmake
     with open("config.cmake", "a") as config_file:
+        if is_win():
+            import posixpath
+            llvm_config_path = llvm_config_path.replace(os.sep, posixpath.sep)
         config_file.write(f"set(USE_LLVM {llvm_config_path})\n")
     # Run CMake and make
     try:
         subprocess.check_call(["cmake", ".."])
-        subprocess.check_call(["make", "-j4"])
+        if is_win():
+            subprocess.check_call(["cmake", "--build", ".", "--config", "Release"])
+        else:
+            subprocess.check_call(["make", "-j4"])
     except subprocess.CalledProcessError as error:
         raise RuntimeError("Failed to build TVM") from error
     finally:

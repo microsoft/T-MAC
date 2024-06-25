@@ -74,6 +74,7 @@ def get_devices():
 _platform_device_default_map = {
     ("Darwin", "arm64"): "m2",
     ("Linux", "aarch64"): "jetson",
+    ("Windows", "AMD64"): "intel_win",
 }
 
 
