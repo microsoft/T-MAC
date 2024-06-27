@@ -17,7 +17,7 @@ PLATFORM_LLVM_MAP = {
     # (system, processor): (llvm_version, file_suffix)
     ("Darwin", "arm64"): ("17.0.6", "arm64-apple-darwin22.0.tar.xz"),
     ("Linux", "aarch64"): ("17.0.6", "aarch64-linux-gnu.tar.xz"),
-    ("Windows", "AMD64"): ("18.1.6", "x86_64-pc-windows-msvc.tar.xz"),
+    # ("Windows", "AMD64"): ("18.1.6", "x86_64-pc-windows-msvc.tar.xz"),
     # TODO: test and add linux/win, intel cpu
 }
 MANUAL_BUILD = bool(int(os.getenv("MANUAL_BUILD", "0")))

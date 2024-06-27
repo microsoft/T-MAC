@@ -97,7 +97,7 @@ T-MAC achieves comparable 2-bit mpGEMM performance compared to CUDA GPU on Jetso
 - virtualenv
 - cmake>=3.22
 
-### OSX
+### OSX (Apple Silicon)
 
 First, install `cmake`, `zstd` (dependency of llvm) and `libomp` (dependency of tvm). Homebrew is recommended:
 
@@ -118,7 +118,7 @@ source build/t-mac-envs.sh
 
 The command will download clang+llvm and build tvm from source. So it might take a bit of time.
 
-### Ubuntu
+### Ubuntu (aarch64)
 
 Install cmake>=3.22 from [Official Page](https://cmake.org/download/) and libtinfo-dev with:
 
@@ -136,6 +136,46 @@ source build/t-mac-envs.sh
 ```
 
 The command will download clang+llvm and build tvm from source. So it might take a bit of time.
+
+### Windows (x86_64)
+
+Due to lack of stable clang+llvm prebuilt on Windows, Conda + Visual Studio is recommended to install dependencies.
+
+First, install Visual Studio 2019 and toggle on `Desk development with C++` and `C++ Clang tools for Windows`. Then, create conda environment within `Developer PowerShell for VS 2019`:
+
+```powershell
+git clone --recursive https://github.com/microsoft/T-MAC.git
+cd T-MAC
+conda env create --file conda\tvm-build-environment.yaml
+conda activate tvm-build
+```
+
+> If you are using Visual Studio 2022, replace `llvmdev =14.0.6` with `llvmdev =17.0.6` in the yaml file.
+
+After that, build TVM with:
+
+```powershell
+cd 3rdparty\tvm
+mkdir build
+cp cmake\config.cmake build
+```
+
+Append `set(USE_LLVM llvm-config)` to `build\config.cmake`.
+
+```powershell
+cd build
+cmake ..
+cmake --build . --config Release -- /m
+```
+
+Install `t_mac` from the source:
+
+```powershell
+cd ..\..\..\  # back to project root directory
+$env:MANUAL_BUILD = "1"
+$env:PYTHONPATH = "$pwd\3rdparty\tvm\python"
+pip install . -v  # or pip install -e . -v
+```
 
 ### Verification
 
@@ -161,8 +201,9 @@ Then, compile kernels for the model. There are two options:
 - Compile the kernels yourself:
     ```bash
     cd deploy
-    python compile.py -o tuned -da -nt 4 -tb -gc -ags 64 -t -m hf-bitnet-3b
+    python compile.py -o tuned -da -nt 4 -tb -gc -ags -1 -t -m hf-bitnet-3b
     ```
+    > Specify `-ags 64` on ARM CPUs for better performance.
 
 Build T-MAC C++ source:
 
@@ -190,6 +231,8 @@ Build llama.cpp:
 mkdir build
 cd build
 cmake .. -DLLAMA_TMAC=ON -DCMAKE_PREFIX_PATH=${TMAC_ROOT_DIR}/install/lib/cmake/t-mac -DCMAKE_BUILD_TYPE=Release -DLLAMA_LLAMAFILE_DEFAULT=OFF -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+# In Windows Visual Studio PowerShell:
+# cmake .. -DLLAMA_TMAC=ON -DCMAKE_PREFIX_PATH=${TMAC_ROOT_DIR}/install/lib/cmake/t-mac -DCMAKE_BUILD_TYPE=Release -DLLAMA_LLAMAFILE_DEFAULT=OFF -T ClangCL
 cmake --build . --target main llama-bench --config Release
 ```
 
