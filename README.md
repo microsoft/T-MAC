@@ -118,12 +118,14 @@ source build/t-mac-envs.sh
 
 The command will download clang+llvm and build tvm from source. So it might take a bit of time.
 
-### Ubuntu (aarch64)
+### Ubuntu (aarch64/x86_64)
 
-Install cmake>=3.22 from [Official Page](https://cmake.org/download/) and libtinfo-dev with:
+Install cmake>=3.22 from [Official Page](https://cmake.org/download/).
+
+Then install TVM build dependencies:
 
 ```bash
-sudo apt install libtinfo-dev
+sudo apt install build-essential libtinfo-dev zlib1g-dev libzstd-dev libxml2-dev
 ```
 
 Install `t_mac` from the source (please run in a `virtualenv`):

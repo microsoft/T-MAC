@@ -53,6 +53,18 @@ _device_kwargs = {
         "out_dtype": "float32",
         "aggregation_dtype": "int32",
     },
+    "intel_linux": {
+        "target": "llvm -mtriple=x86_64-unknown-linux-gnu -mcpu=core-avx2",
+        "eval_kwargs": {
+            "number": 10,
+            "repeat": 10,
+        },
+        "remote_kwargs": None,
+        # TODO: check if inline-threshold is needed for other devices
+        "cc_opts": ["-O3", "-march=native", "-mllvm", "-inline-threshold=10000"],
+        "out_dtype": "float32",
+        "aggregation_dtype": "int32",
+    },
     "jetson":{
         "target": "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+fullfp16,+fp-armv8,+neon",
         "eval_kwargs": {
@@ -72,9 +84,10 @@ def get_devices():
 
 
 _platform_device_default_map = {
-    ("Darwin", "arm64"): "m2",
+    ("Darwin", "aarch64"): "m2",
     ("Linux", "aarch64"): "jetson",
-    ("Windows", "AMD64"): "intel_win",
+    ("Windows", "x86_64"): "intel_win",
+    ("Linux", "x86_64"): "intel_linux",
 }
 
 

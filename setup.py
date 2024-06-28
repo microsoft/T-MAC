@@ -17,8 +17,8 @@ PLATFORM_LLVM_MAP = {
     # (system, processor): (llvm_version, file_suffix)
     ("Darwin", "arm64"): ("17.0.6", "arm64-apple-darwin22.0.tar.xz"),
     ("Linux", "aarch64"): ("17.0.6", "aarch64-linux-gnu.tar.xz"),
-    # ("Windows", "AMD64"): ("18.1.6", "x86_64-pc-windows-msvc.tar.xz"),
-    # TODO: test and add linux/win, intel cpu
+    # ("Windows", "x86_64"): ("18.1.6", "x86_64-pc-windows-msvc.tar.xz"),
+    ("Linux", "x86_64"): ("17.0.6", "x86_64-linux-gnu-ubuntu-22.04.tar.xz"),
 }
 MANUAL_BUILD = bool(int(os.getenv("MANUAL_BUILD", "0")))
 
@@ -32,10 +32,17 @@ def is_win() -> bool:
     return get_system_info()[0] == "Windows"
 
 
+ARCH_MAP = {
+    "arm64": "aarch64",
+    "AMD64": "x86_64",
+}
+
+
 def get_system_info() -> Tuple[str, str]:
     """Get OS and processor architecture"""
     system = platform.system()
     processor = platform.machine()
+    processor = ARCH_MAP.get(processor, processor)
     return system, processor
 
 
