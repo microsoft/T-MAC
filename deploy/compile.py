@@ -29,6 +29,11 @@ PRESET_KERNELS = {
         [2, 11008, 4096, 1, -1],
         [2, 4096, 11008, 1, -1],
     ],
+    "llama-2-13b-2bit": [
+        [2, 5120, 5120, 1, -1],
+        [2, 13824, 5120, 1, -1],
+        [2, 5120, 13824, 1, -1],
+    ],
     "hf-bitnet-3b": [
         [2, 3200, 8640, 1, 1],
         [2, 8640, 3200, 1, 1],
@@ -126,6 +131,7 @@ def compile(
             fast_aggregation=FLAGS.fast_aggregation,
             bits=bits,
             aggregation_dtype=aggregation_dtype,
+            zero_point=FLAGS.zero_point,
             **codegen_kwargs,
         )
         preprocessor = QGeMMLUTBitsPreprocessorCodegen(
@@ -164,6 +170,9 @@ def compile(
             body_code += qgemm_lut.extra_cc_body
         mod = insert(mod, qgemm_mod)
         # Write kcfg
+        scales_size = qgemm_lut.m_groups if qgemm_lut.m_groups != -1 else (M // bits * K // qgemm_lut.group_size)
+        if FLAGS.zero_point:
+            scales_size *= 2
         config[template_name] = {
             "bm": str(qgemm_lut.bm),
             "simd_n_in": str(qgemm_lut.simd_n_in),
@@ -171,7 +180,7 @@ def compile(
             "kfactor": str(qgemm_lut.kfactor),
             "group_size": str(qgemm_lut.group_size),
             "lut_scales_size": str(N * K // qgemm_lut.act_group_size),
-            "scales_size": str(qgemm_lut.m_groups if qgemm_lut.m_groups != -1 else (M // bits * K // qgemm_lut.group_size)),
+            "scales_size": str(scales_size),
             "n_tile_num": str(M // qgemm_lut.bm),
         }
 
@@ -232,6 +241,7 @@ def parse_args():
     parser.add_argument("-gs", "--group_size", type=int, default=128)
     parser.add_argument("-ags", "--act_group_size", type=int, default=64, help="-1 for BitNet-like unified scale")
     parser.add_argument("-fa", "--fast_aggregation", action="store_true")
+    parser.add_argument("-zp", "--zero_point", action="store_true")
 
     parser.add_argument("-m", "--preset_model", type=str, choices=PRESET_KERNELS.keys(), default="hf-bitnet-3b")
     return parser.parse_args()

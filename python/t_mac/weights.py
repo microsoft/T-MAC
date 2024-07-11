@@ -1,10 +1,11 @@
 import numpy as np
-from typing import Tuple
+from typing import Tuple, Optional
 
 
 def preprocess_weights(
     w: np.ndarray,
     scales: np.ndarray,
+    zeros: Optional[np.ndarray] = None,
     bits: int = 4,
     g: int = 4,
     bm: int = 512,
@@ -17,9 +18,17 @@ def preprocess_weights(
     Parameters
     ----------
     w : np.ndarray
-        Quantized weights of shape (M, K) and type "uint8"
+        Quantized weights of shape (M, K) and type "uint8".
+        Add a bias of 2^(bits-1) to the original int1/2/3/4 values to convert it to uint values.
+        E.g., add a bias of 2 to int2: -2, -1, 0, 1 -> 0, 1, 2, 3
     scales: np.ndarray
-        Quantization scales of shape (M, K // group_size) or (m_groups,)
+        Quantization scales of shape (M, K // group_size) or (m_groups,) and type float32/16.
+    zeros: np.ndarray
+        Same shape and type with scales.
+        If None, the actual zero points will be 2^(bits-1) * scales;
+        if not None, the actual zero points will be zeros + 2^(bits-1) * scales.
+        E.g., before passing the zeros from BitDistiller/GPTQ, you need to modify it as following:
+        `zeros = (zeros - (2 ** (bits - 1))) * scales`
     bits: int
         Number of bits for each quantized element
     g: int
@@ -38,6 +47,7 @@ def preprocess_weights(
     scales: np.ndarray
         Permuted scales
     """
+    assert(w.dtype == "uint8")
 
     M, K = w.shape
     M = M * bits
@@ -66,7 +76,13 @@ def preprocess_weights(
         group_size = K // scales.shape[1]
         scales = scales.reshape(M // bm, bm // bits, K // group_size).transpose(0, 2, 1)
         scales = scales.reshape(M // bm, K // group_size, bm // bits // simd_n_out, simd_n_out)
+        if zeros is not None:
+            zeros = zeros.reshape(M // bm, bm // bits, K // group_size).transpose(0, 2, 1)
+            zeros = zeros.reshape(M // bm, K // group_size, bm // bits // simd_n_out, simd_n_out)
+            scales = np.stack([scales, zeros], axis=-2)
         # input size of current TVM API
-        scales = scales.reshape(M // bm, K // group_size, bm // bits)
-
+        scales = scales.reshape(M // bm, K // group_size, -1)
+    else:
+        if zeros is not None:
+            scales = np.concatenate([scales, zeros])
     return w, scales
