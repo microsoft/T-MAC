@@ -132,6 +132,8 @@ class QGeMMLUTBitsCodegen(OpCodegen):
         LUT = te.placeholder((N, K // self.g, 2 ** self.g), dtype=self.dtype, name="LUT")
 
         if self.m_groups == -1:
+            if K % self.group_size != 0:
+                raise TVMError("K({}) must be devisible by group_size({})".format(K, self.group_size))
             if self.zero_point:
                 scales_shape = (M // bm, K // self.group_size, bm // self.bits * 2)
                 def _get_scale(m, k):
@@ -326,10 +328,7 @@ class QGeMMLUTBitsCodegen(OpCodegen):
                         m_group_size = M // self.m_groups
                         s = scales[m // m_group_size]
 
-                    if self.zero_point:
-                        cbits[n, m] += lut[n, k, a_e] * lut_scales[n, k * self.g // self.act_group_size] * s
-                    else:
-                        cbits[n, m] += lut[n, k, a_e] * lut_scales[n, k * self.g // self.act_group_size] * s
+                    cbits[n, m] += lut[n, k, a_e] * lut_scales[n, k * self.g // self.act_group_size] * s
                     if (((k * self.g) % self.act_group_size) == 0) and ((((m % self.bm) // self.simd_n_out) % self.bits) == 0):
                         cbits[n, m] += lut_biases[n, k * self.g // self.act_group_size] * s
                         if self.zero_point:

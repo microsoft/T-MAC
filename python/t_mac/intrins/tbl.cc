@@ -391,17 +391,28 @@ inline int32_t tbl_g4_int8_float_update_impl(int32_t m, float_type* c, int8_t* l
         if (ZeroPoint) {
             // OneScale mode is disabled for ZeroPoint = True
             float16x8_t vec_s0 = vld1q_f16(scales + ((i / 4    ) / Bits) * 16);
-            float16x8_t vec_z0 = vld1q_f16(scales + ((i / 4    ) / Bits) * 16 + 8);
             float16x8_t vec_s1 = vld1q_f16(scales + ((i / 4 + 1) / Bits) * 16);
-            float16x8_t vec_z1 = vld1q_f16(scales + ((i / 4 + 1) / Bits) * 16 + 8);
             float16x8_t vec_s2 = vld1q_f16(scales + ((i / 4 + 2) / Bits) * 16);
-            float16x8_t vec_z2 = vld1q_f16(scales + ((i / 4 + 2) / Bits) * 16 + 8);
             float16x8_t vec_s3 = vld1q_f16(scales + ((i / 4 + 3) / Bits) * 16);
+            // default_zero = 2 ** (bits - 1)
+            // w = (w - default_zero - (zeros - default_zero)) * scales
+            vec_c0 = vld1q_f16(c + i * 2)      + vec_c0 * vec_s0;
+            vec_c1 = vld1q_f16(c + i * 2 + 8)  + vec_c1 * vec_s1;
+            vec_c2 = vld1q_f16(c + i * 2 + 16) + vec_c2 * vec_s2;
+            vec_c3 = vld1q_f16(c + i * 2 + 24) + vec_c3 * vec_s3;
+            float16x8_t vec_z0 = vld1q_f16(scales + ((i / 4    ) / Bits) * 16 + 8);
+            float16x8_t vec_z1 = vld1q_f16(scales + ((i / 4 + 1) / Bits) * 16 + 8);
+            float16x8_t vec_z2 = vld1q_f16(scales + ((i / 4 + 2) / Bits) * 16 + 8);
             float16x8_t vec_z3 = vld1q_f16(scales + ((i / 4 + 3) / Bits) * 16 + 8);
-            vst1q_f16(c + i * 2,      vld1q_f16(c + i * 2)      + vec_c0 * vec_s0 + vec_z0 * partial_sum);
-            vst1q_f16(c + i * 2 + 8,  vld1q_f16(c + i * 2 + 8)  + vec_c1 * vec_s1 + vec_z1 * partial_sum);
-            vst1q_f16(c + i * 2 + 16, vld1q_f16(c + i * 2 + 16) + vec_c2 * vec_s2 + vec_z2 * partial_sum);
-            vst1q_f16(c + i * 2 + 24, vld1q_f16(c + i * 2 + 24) + vec_c3 * vec_s3 + vec_z3 * partial_sum);
+            partial_sum *= 2;
+#define add_zero(cs, zs, ib) \
+    ((ib) % Bits) ? ((cs)) \
+                  : ((cs) + zs * partial_sum)
+            vst1q_f16(c + i * 2,      add_zero(vec_c0, vec_z0, (i / 4    )));
+            vst1q_f16(c + i * 2 + 8,  add_zero(vec_c1, vec_z1, (i / 4 + 1)));
+            vst1q_f16(c + i * 2 + 16, add_zero(vec_c2, vec_z2, (i / 4 + 2)));
+            vst1q_f16(c + i * 2 + 24, add_zero(vec_c3, vec_z3, (i / 4 + 3)));
+#undef add_zero
         } else {
             if (OneScale) {
                 float_type vec_s = scales[0];
@@ -458,7 +469,7 @@ inline int32_t tbl_g4_int8_float_update_impl(int32_t m, float_type* c, int8_t* l
             float_type lut_s = lut_scales[kk / ActK];
             float_type lut_b = lut_biases[kk / ActK];
 
-            partial_sum -= lut_b;
+            partial_sum += lut_b;
 
             if (FastAggregation) {
                 lut_s = lut_s * ActK;
@@ -484,17 +495,26 @@ inline int32_t tbl_g4_int8_float_update_impl(int32_t m, float_type* c, int8_t* l
 
         if (ZeroPoint) {
             __m256 vec_s0 = _mm256_loadu_ps(scales + ((i / 4    ) / Bits) * 16);
-            __m256 vec_z0 = _mm256_loadu_ps(scales + ((i / 4    ) / Bits) * 16 + 8);
             __m256 vec_s1 = _mm256_loadu_ps(scales + ((i / 4 + 1) / Bits) * 16);
-            __m256 vec_z1 = _mm256_loadu_ps(scales + ((i / 4 + 1) / Bits) * 16 + 8);
             __m256 vec_s2 = _mm256_loadu_ps(scales + ((i / 4 + 2) / Bits) * 16);
-            __m256 vec_z2 = _mm256_loadu_ps(scales + ((i / 4 + 2) / Bits) * 16 + 8);
             __m256 vec_s3 = _mm256_loadu_ps(scales + ((i / 4 + 3) / Bits) * 16);
+            vec_c0 = _mm256_fmadd_ps(vec_c0, vec_s0, _mm256_loadu_ps(c + i * 2));
+            vec_c1 = _mm256_fmadd_ps(vec_c1, vec_s1, _mm256_loadu_ps(c + i * 2 + 8));
+            vec_c2 = _mm256_fmadd_ps(vec_c2, vec_s2, _mm256_loadu_ps(c + i * 2 + 16));
+            vec_c3 = _mm256_fmadd_ps(vec_c3, vec_s3, _mm256_loadu_ps(c + i * 2 + 24));
+            __m256 vec_z0 = _mm256_loadu_ps(scales + ((i / 4    ) / Bits) * 16 + 8);
+            __m256 vec_z1 = _mm256_loadu_ps(scales + ((i / 4 + 1) / Bits) * 16 + 8);
+            __m256 vec_z2 = _mm256_loadu_ps(scales + ((i / 4 + 2) / Bits) * 16 + 8);
             __m256 vec_z3 = _mm256_loadu_ps(scales + ((i / 4 + 3) / Bits) * 16 + 8);
-            _mm256_storeu_ps(c + i * 2,      _mm256_add_ps(_mm256_set1_ps(partial_sum), _mm256_fmadd_ps(vec_c0, vec_s0, _mm256_loadu_ps(c + i * 2))));
-            _mm256_storeu_ps(c + i * 2 + 8,  _mm256_add_ps(_mm256_set1_ps(partial_sum), _mm256_fmadd_ps(vec_c1, vec_s1, _mm256_loadu_ps(c + i * 2 + 8))));
-            _mm256_storeu_ps(c + i * 2 + 16, _mm256_add_ps(_mm256_set1_ps(partial_sum), _mm256_fmadd_ps(vec_c2, vec_s2, _mm256_loadu_ps(c + i * 2 + 16))));
-            _mm256_storeu_ps(c + i * 2 + 24, _mm256_add_ps(_mm256_set1_ps(partial_sum), _mm256_fmadd_ps(vec_c3, vec_s3, _mm256_loadu_ps(c + i * 2 + 24))));
+            partial_sum *= 2;
+#define add_zero(cs, zs, ib) \
+    ((ib) % Bits) ? ((cs)) \
+                  : (_mm256_fmadd_ps((zs), _mm256_set1_ps(partial_sum), (cs)))
+            _mm256_storeu_ps(c + i * 2,      add_zero(vec_c0, vec_z0, (i / 4    )));
+            _mm256_storeu_ps(c + i * 2 + 8,  add_zero(vec_c1, vec_z1, (i / 4 + 1)));
+            _mm256_storeu_ps(c + i * 2 + 16, add_zero(vec_c2, vec_z2, (i / 4 + 2)));
+            _mm256_storeu_ps(c + i * 2 + 24, add_zero(vec_c3, vec_z3, (i / 4 + 3)));
+#undef add_zero
         } else {
             __m256 vec_s0 = _mm256_loadu_ps(scales + ((i / 4    ) / Bits) * 8);
             __m256 vec_s1 = _mm256_loadu_ps(scales + ((i / 4 + 1) / Bits) * 8);
