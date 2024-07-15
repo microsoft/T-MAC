@@ -32,3 +32,13 @@ def get_osx_isysroot() -> List[str]:
         return ["-isysroot", sdk_root]
     else:
         return []
+
+
+def is_win() -> bool:
+    """Check if is windows or not"""
+    return get_system_info()[0] == "Windows"
+
+
+def is_arm() -> bool:
+    """Check if is windows or not"""
+    return get_system_info()[1] == "aarch64"

@@ -187,62 +187,42 @@ After that, you can verify the installation through: `python -c "import t_mac; p
 
 Currently, we supports end-to-end inference through llama.cpp integration.
 
-### Prepare models
-
-> The following guide use BitNet-3B. We will add instructions how to use GPTQ/GGUF/BitDistiller models or even your customized models.
-
-First, download the model `huggingface-cli download 1bitLLM/bitnet_b1_58-3B --local-dir ${model_dir}`.
-
-Then, compile kernels for the model. There are two options:
-
-- Use prebuilt kernels for ARM CPUs:
-    ```bash
-    cd deploy
-    cp tuned/arm-hf-bitnet-3b/* tuned/
-    ```
-- Compile the kernels yourself:
-    ```bash
-    cd deploy
-    python compile.py -o tuned -da -nt 4 -tb -gc -ags -1 -t -m hf-bitnet-3b
-    ```
-    > Specify `-ags 64` on ARM CPUs for better performance.
-
-Build T-MAC C++ source:
+We have provided an **all-in-one script**. Invoke it with:
 
 ```bash
-cd ..  # back to project root directory
-export TMAC_ROOT_DIR=$(pwd)
-cd build
-cmake -DCMAKE_INSTALL_PREFIX=${TMAC_ROOT_DIR}/install ..
-cmake --build . --target install --config Release
+pip install 3rdparty/llama.cpp/gguf-py
+huggingface-cli download 1bitLLM/bitnet_b1_58-3B --local-dir ${model_dir}
+python tools/run_pipeline.py -o ${model_dir}
 ```
 
-Convert the huggingface model to gguf:
+An example output:
 
-```bash
-cd ../3rdparty/llama.cpp/gguf-py
-pip install .
-cd ..
-python convert-hf-to-gguf-bitnet.py ${model_dir} --outtype i2 --outfile ${model_dir}/hf-bitnet-3B.i2.gguf --kcfg ${TMAC_ROOT_DIR}/install/lib/kcfg.ini
+```
+Running STEP.0: Compile kernels
+  Running command in /Users/user/jianyu/T-MAC/deploy:
+    python compile.py -o tuned -da -nt 4 -tb -gc -gs 128 -ags 64 -t -m hf-bitnet-3b -r
+Running STEP.1: Build T-MAC C++ CMakeFiles
+  Running command in /Users/user/jianyu/T-MAC/build:
+    cmake -DCMAKE_INSTALL_PREFIX=/Users/user/jianyu/T-MAC/install ..
+Running STEP.2: Install T-MAC C++
+  Running command in /Users/user/jianyu/T-MAC/build:
+    cmake --build . --target install --config Release
+Running STEP.3: Convert HF to GGUF
+  Running command in /Users/user/jianyu/T-MAC/3rdparty/llama.cpp:
+    python convert-hf-to-gguf-t-mac.py /Users/user/Downloads/test_models/hf-bitnet-3B --outtype i2 --outfile /Users/user/Downloads/test_models/hf-bitnet-3B/ggml-model.i2.gguf --kcfg /Users/user/jianyu/T-MAC/install/lib/kcfg.ini
+Running STEP.4: Build llama.cpp CMakeFiles
+  Running command in /Users/user/jianyu/T-MAC/3rdparty/llama.cpp/build:
+    cmake .. -DLLAMA_TMAC=ON -DCMAKE_PREFIX_PATH=/Users/user/jianyu/T-MAC/install/lib/cmake/t-mac -DCMAKE_BUILD_TYPE=Release -DLLAMA_LLAMAFILE_DEFAULT=OFF -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+Running STEP.5: Build llama.cpp
+  Running command in /Users/user/jianyu/T-MAC/3rdparty/llama.cpp/build:
+    cmake --build . --target main --config Release
+Running STEP.6: Run inference
+  Running command in /Users/user/jianyu/T-MAC/3rdparty/llama.cpp/build:
+    /Users/user/jianyu/T-MAC/3rdparty/llama.cpp/build/bin/main -m /Users/user/Downloads/test_models/hf-bitnet-3B/ggml-model.i2.gguf -n 128 -t 4 -p Microsoft Corporation is an American multinational corporation and technology company headquartered in Redmond, Washington. -b 1 -ngl 0 -c 2048
+Check logs/2024-07-15-17-10-11.log for inference output
 ```
 
-Build llama.cpp:
-
-```bash
-# in 3rdparty/llama.cpp
-mkdir build
-cd build
-cmake .. -DLLAMA_TMAC=ON -DCMAKE_PREFIX_PATH=${TMAC_ROOT_DIR}/install/lib/cmake/t-mac -DCMAKE_BUILD_TYPE=Release -DLLAMA_LLAMAFILE_DEFAULT=OFF -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
-# In Windows Visual Studio PowerShell:
-# cmake .. -DLLAMA_TMAC=ON -DCMAKE_PREFIX_PATH=${TMAC_ROOT_DIR}/install/lib/cmake/t-mac -DCMAKE_BUILD_TYPE=Release -DLLAMA_LLAMAFILE_DEFAULT=OFF -T ClangCL
-cmake --build . --target main llama-bench --config Release
-```
-
-Run inference through:
-
-```bash
-./bin/main -m ~/Downloads/test_models/hf-bitnet-3B.i2.gguf -n 128 -t 1 -p "Microsoft Corporation is an American multinational corporation and technology company headquartered in Redmond, Washington." -b 1 -ngl 0 -c 2048
-```
+Check [e2e.md](docs/e2e.md) for detailed and advanced usage.
 
 ## Techniques
 
