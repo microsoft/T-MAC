@@ -244,10 +244,13 @@ Our method exhibits several notable characteristics:
 ## Cite
 If you find this repository useful, please use the following BibTeX entry for citation.
 ```
-@misc{t-mac,
-      title={T-MAC: CPU Renaissance via Table Lookup for Low-Bit LLM Inference},
-      author={Jianyu Wei and Shijie Cao and Ting Cao and Lei Wang and Lingxiao Ma},
+@misc{wei2024tmaccpurenaissancetable,
+      title={T-MAC: CPU Renaissance via Table Lookup for Low-Bit LLM Deployment on Edge}, 
+      author={Jianyu Wei and Shijie Cao and Ting Cao and Lingxiao Ma and Lei Wang and Yanyong Zhang and Mao Yang},
       year={2024},
-      url={https://github.com/microsoft/T-MAC/}
+      eprint={2407.00088},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2407.00088}, 
 }
 ```
