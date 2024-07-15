@@ -118,7 +118,7 @@ def cmake_llamacpp():
 
 def build_llamacpp():
     build_dir = os.path.join(ROOT_DIR, "3rdparty", "llama.cpp", "build")
-    command = ['cmake', '--build', '.', '--target', 'main', '--config', 'Release']
+    command = ['cmake', '--build', '.', '--target', 'main', 'llama-bench', '--config', 'Release']
     run_command(command, build_dir)
 
 
@@ -158,11 +158,12 @@ STEPS = [
 STEPS_PRESETS = {
     "all": [0, 1, 2, 3, 4, 5, 6],
     "fast": [0, 2, 3, 5, 6],
+    "compile": [0, 2, 5],
 }
 
 
 MODELS = [
-    # "llama-2-7b-4bit",
+    "llama-2-7b-4bit",
     "llama-2-7b-2bit",
     "llama-2-13b-2bit",
     "llama-3-8b-2bit",
