@@ -14,39 +14,18 @@ T-MAC achieves a token generation throughput of 22 tokens/sec with a single core
 
 ## End-2-End Speedup
 
-We evaluate the token generation performance of different models on four different devices: Apple M2-Ultra, Jetson AGX Orin, Raspberry Pi 5 and Surface Book 3.
+We evaluate the token generation performance of different models on four different devices: Apple M2-Ultra, Jetson AGX Orin, Raspberry Pi 5 and Surface Book 3. Check [datasheet](docs/profiling_data.md) for more details.
 
 > We evaluate BitNet-3B and Llama-2-7B (W2) with T-MAC 2-bit and llama.cpp Q2_K, and evaluate Llama-2-7B (W4) with T-MAC 4-bit and llama.cpp Q4_0.
 
-| Model              | Device         | NUM_THREADS | llama.cpp (CPU) (tokens/sec) | T-MAC (CPU) |
-|--------------------|----------------|-------------|------------------------------|-------------|
-| BitNet-3B          | M2-Ultra       | 1           | 6.49                         | 22.08       |
-| BitNet-3B          | M2-Ultra       | 4           | 22.09                        | 54.46       |
-| Llama-2-7B (W2)    | M2-Ultra       | 1           | 3.82                         | 16.68       |
-| Llama-2-7B (W2)    | M2-Ultra       | 8           | 22.06                        | 51.01       |
-| Llama-2-7B (W4)    | M2-Ultra       | 1           | 5.65                         | 8.97        |
-| Llama-2-7B (W4)    | M2-Ultra       | 8           | 31.57                        | 35.65       |
-|                    |                |             |                              |             |
-| BitNet-3B          | AGX Orin       | 1           | 1.62                         | 8.18        |
-| BitNet-3B          | AGX Orin       | 12          | 12.34                        | 26.02       |
-| Llama-2-7B (W2)    | AGX Orin       | 1           | 0.79                         | 4.36        |
-| Llama-2-7B (W2)    | AGX Orin       | 12          | 7.08                         | 15.62       |
-| Llama-2-7B (W4)    | AGX Orin       | 1           | 1.04                         | 2.46        |
-| Llama-2-7B (W4)    | AGX Orin       | 12          | 7.42                         | 8.09        |
-|                    |                |             |                              |             |
-| BitNet-3B          | Raspberry Pi 5 | 1           | 1.37                         | 8.03        |
-| BitNet-3B          | Raspberry Pi 5 | 2           | 2.71                         | 11.09       |
-| Llama-2-7B (W2)    | Raspberry Pi 5 | 1           | 0.66                         | 4.40        |
-| Llama-2-7B (W2)    | Raspberry Pi 5 | 2           | 1.31                         | 5.92        |
-| Llama-2-7B (W4)    | Raspberry Pi 5 | 1           | 0.85                         | 2.42        |
-| Llama-2-7B (W4)    | Raspberry Pi 5 | 2           | 1.63                         | 3.35        |
-|                    |                |             |                              |             |
-| BitNet-3B          | Surface Book 3 | 1           | 5.65                         | 12.65       |
-| BitNet-3B          | Surface Book 3 | 4           | 14.85                        | 28.60       |
-| Llama-2-7B (W2)    | Surface Book 3 | 1           | 2.70                         | 6.77        |
-| Llama-2-7B (W2)    | Surface Book 3 | 4           | 7.50                         | 16.82       |
-| Llama-2-7B (W4)    | Surface Book 3 | 1           | 2.50                         | 3.74        |
-| Llama-2-7B (W4)    | Surface Book 3 | 4           | 6.52                         | 9.34        |
+In addition to providing a significant speedup, T-MAC can also match the same performance using fewer CPU cores. For instance, to reach 40 tokens/sec, a throughput that greatly surpasses human reading speed, T-MAC only requires 2 cores, while llama.cpp requires 8 cores. On Jetson AGX Orin, to achieve 10 tokens/sec, a throughput that already meets human reading speed, T-MAC only requires 2 cores, while llama.cpp uses all 12 cores. T-MAC can meet real-time requirements on less powerful devices equipped with fewer CPU cores like Raspberry Pi 5. By using fewer cores, T-MAC can reserve computational resources for other applications and significantly reduce power and energy consumption, both of which are crucial for edge devices.
+
+<h3 align="center">
+    <img src="assets/e2e_threads.png">
+    <p>T-MAC achieves significant speedup at single-threads and consumes much less CPU cores to reach the same throughput</p>
+</h3>
+
+> The throughputs of T-MAC are obtained without fast-aggregation. Users can toggle on fast-aggregation through `-fa` to achieve an additional speedup of 10%~20%.
 
 ## Kernel-level Speedup
 
