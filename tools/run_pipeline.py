@@ -53,10 +53,12 @@ def _clean_cmake(build_dir):
 
 def cmake_t_mac():
     build_dir = os.path.join(ROOT_DIR, "build")
+    install_dir = os.path.join(ROOT_DIR, "install")
+    os.makedirs(build_dir, exist_ok=True)
     _clean_cmake(build_dir)
     command = [
         'cmake',
-        f'-DCMAKE_INSTALL_PREFIX={ROOT_DIR}/install',
+        f'-DCMAKE_INSTALL_PREFIX={install_dir}',
         '..',
     ]
     run_command(command, build_dir)
@@ -106,7 +108,12 @@ def cmake_llamacpp():
         '-DLLAMA_LLAMAFILE_DEFAULT=OFF',
     ]
     if is_win():
-        command.append("-T ClangCL")
+        if is_arm():
+            command.append("-DCMAKE_C_COMPILER=clang")
+            command.append("-DCMAKE_CXX_COMPILER=clang++")
+            command.append("-G Ninja")
+        else:
+            command.append("-T ClangCL")
     else:
         command.append("-DCMAKE_C_COMPILER=clang")
         command.append("-DCMAKE_CXX_COMPILER=clang++")
@@ -127,6 +134,8 @@ def run_inference():
     out_path = os.path.join(FLAGS.model_dir, f"ggml-model.{FLAGS.quant_type}.gguf")
     if is_win():
         main_path = os.path.join(build_dir, "bin", "Release", "main.exe")
+        if not os.path.exists(main_path):
+            main_path = os.path.join(build_dir, "bin", "main")
     else:
         main_path = os.path.join(build_dir, "bin", "main")
     prompt = "Microsoft Corporation is an American multinational corporation and technology company headquartered in Redmond, Washington."

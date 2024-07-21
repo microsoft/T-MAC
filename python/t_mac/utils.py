@@ -65,8 +65,19 @@ _device_kwargs = {
         "out_dtype": "float32",
         "aggregation_dtype": "int32",
     },
-    "jetson":{
+    "jetson": {
         "target": "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+fullfp16,+fp-armv8,+neon",
+        "eval_kwargs": {
+            "number": 10,
+            "repeat": 10,
+        },
+        "remote_kwargs": None,
+        "cc_opts": ["-O3", "-std=c++17", "-march=armv8.2a+fp16", "-mllvm", "-inline-threshold=10000"],
+        "out_dtype": "float16",
+        "aggregation_dtype": "int32",
+    },
+    "arm_win": {
+        "target": "llvm -device=arm_cpu -mtriple=aarch64-pc-windows-msvc -mattr=+v8.2a,+fullfp16,+fp-armv8,+neon",
         "eval_kwargs": {
             "number": 10,
             "repeat": 10,
@@ -88,6 +99,7 @@ _platform_device_default_map = {
     ("Linux", "aarch64"): "jetson",
     ("Windows", "x86_64"): "intel_win",
     ("Linux", "x86_64"): "intel_linux",
+    ("Windows", "aarch64"): "arm_win",
 }
 
 
