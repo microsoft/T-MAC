@@ -26,6 +26,14 @@ def run_command(command, pwd):
 
 
 def compile_kernels():
+    deploy_dir = os.path.join(ROOT_DIR, "deploy")
+    tuned_dir = os.path.join(deploy_dir, "tuned")
+    prebuilt_dir = os.path.join(tuned_dir, f"{get_system_info()[1]}-{FLAGS.model}")
+    if FLAGS.use_prebuilt and os.path.isdir(prebuilt_dir):
+        print(f"  Copy prebuilt kernels from {prebuilt_dir} to {tuned_dir}")
+        shutil.copytree(prebuilt_dir, tuned_dir, dirs_exist_ok=True)
+        return
+
     qargs = get_quant_args()
     command = [
         'python', 'compile.py',
@@ -43,7 +51,7 @@ def compile_kernels():
         command.append('-zp')
     if FLAGS.reuse_tuned:
         command.append('-r')
-    run_command(command, os.path.join(ROOT_DIR, "deploy"))
+    run_command(command, deploy_dir)
 
 
 def _clean_cmake(build_dir):
@@ -205,6 +213,7 @@ def parse_args():
 
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("-r", "--reuse_tuned", action="store_true")
+    parser.add_argument("-u", "--use_prebuilt", action="store_true")
     return parser.parse_args()
 
 
