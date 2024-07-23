@@ -74,6 +74,8 @@ def cmake_t_mac():
 
 def install_t_mac():
     build_dir = os.path.join(ROOT_DIR, "build")
+    install_dir = os.path.join(ROOT_DIR, "install")
+    shutil.rmtree(install_dir, ignore_errors=True)
     command = [
         'cmake',
         '--build',
