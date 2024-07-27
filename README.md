@@ -7,6 +7,8 @@
 
 ## News
 
+- 07/27/2024 ✨: We've noted that T-MAC is even faster than the NPU in token generation speed on the latest Snapdragon X Elite chipset! Check [Compared to NPU](#compared-to-npu) for more details.
+
 - 07/23/2024 🚀🚀: We've enabled the execution of any 2-bit quantized Llama model in GPTQ format via T-MAC! Test it using the pretrained models released by [EfficientQAT](https://github.com/OpenGVLab/EfficientQAT).
 
 - 07/22/2024 🚀🚀: We've added native deployment support for Windows on ARM. T-MAC demonstrates a substantial 5x speedup on the Surface Laptop 7.
@@ -56,6 +58,23 @@ By replacing heavy fused-multiply-add instructions with table lookup instruction
 </p>
 
 > Data sampled with [powermetrics](https://www.unix.com/man-page/osx/1/powermetrics/).
+
+### Compared to NPU
+
+On the latest Snapdragon X Elite chipset, CPU through T-MAC achieves better performance compared to NPU through Qualcomm Snapdragon Neural Processing Engine (NPE).
+
+When deploying the llama-2-7b-4bit model on it, the NPU can only generate 10.4 tokens/sec (according to the data released [here](https://aihub.qualcomm.com/models/llama_v2_7b_chat_quantized)), while the CPU using T-MAC can reach 12.6 tokens/sec with two cores, and even up to 22 tokens/sec. Considering that T-MAC's computing performance can linearly improve with the number of bits decreases (which is not observable on GPUs and NPUs based on dequantization), T-MAC can even match the NPU with a single-core CPU at 2 bits.
+
+| Framework       | Model           | NUM_THREADS | Throughput (tokens/sec) |
+|-----------------|-----------------|-------------|:------------------------|
+| T-MAC (CPU)     | llama-2-7b (W4) |      2      |         <b>12.6</b>     |
+| T-MAC (CPU)     | llama-2-7b (W4) |      4      |         <b>18.7</b>     |
+| T-MAC (CPU)     | llama-2-7b (W2) |      1      |          9.3            |
+| T-MAC (CPU)     | llama-2-7b (W2) |      4      |         <b>28.4</b>     |
+|                 |                 |             |                         |
+| NPE (NPU)       | llama-2-7b (W4) |      -      |          10.4           |
+
+> For fair comparison, we have aligned our settings with those of the NPU, including a input length of 1024 and an output length of 1024. Although Qualcomms deploy a model of 3.6GB, we deploy a slightly larger model of 3.7GB, due to our token-embed remaining un-quantized.
 
 ### Compared to CUDA GPU
 
