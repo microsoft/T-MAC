@@ -261,6 +261,8 @@ huggingface-cli download ChenMnZ/Llama-3-8b-instruct-EfficientQAT-w2g128-GPTQ --
 python tools/run_pipeline.py -o ${model_dir} -m llama-3-8b-2bit
 ```
 
+> Use `-p` or `-s` argument to select the steps you want to run. And use `-u` argument to use our prebuilt kernels for ARM.
+
 An example output:
 
 ```
@@ -287,8 +289,6 @@ Running STEP.6: Run inference
     /Users/user/jianyu/T-MAC/3rdparty/llama.cpp/build/bin/main -m /Users/user/Downloads/test_models/hf-bitnet-3B/ggml-model.i2.gguf -n 128 -t 4 -p Microsoft Corporation is an American multinational corporation and technology company headquartered in Redmond, Washington. -b 1 -ngl 0 -c 2048
 Check logs/2024-07-15-17-10-11.log for inference output
 ```
-
-Check [e2e.md](docs/e2e.md) for the purpose of each step.
 
 ## Upcoming Features
 

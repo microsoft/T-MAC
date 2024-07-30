@@ -1,4 +1,4 @@
-# End-2-End Inference Through llama.cpp
+# End-2-End Inference Through llama.cpp (legacy)
 
 > The following guide use BitNet-3B. We will add instructions how to use GPTQ/GGUF/BitDistiller models or even your customized models.
 
