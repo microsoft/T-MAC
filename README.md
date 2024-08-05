@@ -296,6 +296,7 @@ We will soon:
 
 - [ ] Add `I4` format to simplify the deployment of 4-bit models.
 - [ ] Embed T-MAC GEMM kernels into llama.cpp to accelerate prefill/prompt.
+- [ ] Optimize for ARMv9 CPU with SME2 through LUTI4
 
 ## Techniques
 
