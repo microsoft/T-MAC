@@ -7,6 +7,8 @@
 
 ## News
 
+- 08/06/2024 🚀: Support 1/2/3/4-bit quantized Llama models in GPTQ format. Test it using the pretrained models released by [EfficientQAT](https://github.com/OpenGVLab/EfficientQAT).
+
 - 07/27/2024 ✨: We've noted that T-MAC is even faster than the NPU in token generation speed on the latest Snapdragon X Elite chipset! Check [Compared to NPU](#compared-to-npu) for more details.
 
 - 07/23/2024 🚀🚀: We've enabled the execution of any 2-bit quantized Llama model in GPTQ format via T-MAC! Test it using the pretrained models released by [EfficientQAT](https://github.com/OpenGVLab/EfficientQAT).
@@ -263,6 +265,8 @@ python tools/run_pipeline.py -o ${model_dir} -m llama-3-8b-2bit
 
 > Use `-p` or `-s` argument to select the steps you want to run. And use `-u` argument to use our prebuilt kernels for ARM.
 
+> Use `--zero_point` for asymmetric quantization, which is required for *most* EfficientQAT models (only verified with Llama-3-8b-instruct-w4-g128/Llama-3-8b-instruct-w2-g128).
+
 An example output:
 
 ```
@@ -294,7 +298,7 @@ Check logs/2024-07-15-17-10-11.log for inference output
 
 We will soon:
 
-- [ ] Add `I4` format to simplify the deployment of 4-bit models.
+- [x] Add `I4` format to simplify the deployment of 4-bit models.
 - [ ] Embed T-MAC GEMM kernels into llama.cpp to accelerate prefill/prompt.
 - [ ] Optimize for ARMv9 CPU with SME2 through LUTI4
 

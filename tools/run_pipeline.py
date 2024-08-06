@@ -186,6 +186,7 @@ MODELS = [
     "llama-2-7b-2bit",
     "llama-2-13b-2bit",
     "llama-3-8b-2bit",
+    "llama-3-8b-4bit",
     "hf-bitnet-3b",
     "test",
 ]
@@ -211,11 +212,15 @@ def parse_args():
     parser.add_argument("-gs", "--group_size", type=int, default=None, help="Don't set this argument if you don't know its meaning.")
     parser.add_argument("-ags", "--act_group_size", type=int, default=None, help="Don't set this argument if you don't know its meaning.")
     parser.add_argument("-ld", "--logs_dir", type=str, default="logs")
-    parser.add_argument("-q", "--quant_type", type=str, choices=["i2"], default="i2")
+    parser.add_argument("-q", "--quant_type", type=str, choices=["in", "i1", "i2", "i3", "i4"], default="in")
+    parser.add_argument("-zp", "--zero_point", action="store_true", help="Enforce enable zero_point. Required by EfficientQAT models.")
+    parser.add_argument("-nzp", "--no_zero_point", action="store_false", help="Enforce disable zero_point. Don't set this argument if you don't know its meaning.")
 
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("-r", "--reuse_tuned", action="store_true")
     parser.add_argument("-u", "--use_prebuilt", action="store_true")
+
+    parser.set_defaults(zero_point=None)
     return parser.parse_args()
 
 
@@ -231,6 +236,8 @@ def get_quant_args():
         zero_point = True
     group_size = FLAGS.group_size or group_size
     act_group_size = FLAGS.act_group_size or act_group_size
+    if FLAGS.zero_point is not None:
+        zero_point = FLAGS.zero_point
     return {"group_size": group_size, "act_group_size": act_group_size, "zero_point": zero_point}
 
 
