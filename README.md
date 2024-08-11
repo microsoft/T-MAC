@@ -98,11 +98,12 @@ T-MAC achieves comparable 2-bit mpGEMM performance compared to CUDA GPU on Jetso
 
 ### Requirements
 
-- Python (3.8 recommended)
+- Python (3.8 required for TVM)
 - virtualenv
 - cmake>=3.22
 
-### OSX (Apple Silicon)
+<details>
+<summary><h3>OSX (Apple Silicon)</h3></summary>
 
 First, install `cmake`, `zstd` (dependency of llvm) and `libomp` (dependency of tvm). Homebrew is recommended:
 
@@ -123,7 +124,9 @@ source build/t-mac-envs.sh
 
 The command will download clang+llvm and build tvm from source. So it might take a bit of time.
 
-### Ubuntu (aarch64/x86_64)
+</details>
+<details>
+<summary><h3>Ubuntu (aarch64/x86_64)</h3></summary>
 
 Install cmake>=3.22 from [Official Page](https://cmake.org/download/).
 
@@ -144,7 +147,9 @@ source build/t-mac-envs.sh
 
 The command will download clang+llvm and build tvm from source. So it might take a bit of time.
 
-### Windows (x86_64)
+</details>
+<details>
+<summary><h3>Windows (x86_64)</h3></summary>
 
 Due to lack of stable clang+llvm prebuilt on Windows, Conda + Visual Studio is recommended to install dependencies.
 
@@ -184,7 +189,9 @@ $env:PYTHONPATH = "$pwd\3rdparty\tvm\python"
 pip install . -v  # or pip install -e . -v
 ```
 
-### Windows (ARM64)
+</details>
+<details>
+<summary><h3>Windows (ARM64)</h3></summary>
 
 > The following process could be more complicated. However, if your deployment scenerio doesn't require a native build, you can use WSL/docker and follow the Ubuntu guide.
 
@@ -239,6 +246,8 @@ $env:PYTHONPATH = "$pwd\3rdparty\tvm\python"
 pip install wmi  # To detect the native ARM64 CPU within x86_64 python
 pip install . -v  # or pip install -e . -v
 ```
+
+</details>
 
 ### Verification
 
@@ -317,7 +326,6 @@ Our method exhibits several notable characteristics:
 
 1. T-MAC shows a linear scaling ratio of FLOPs and inference latency relative to the number of bits. This contrasts with traditional convert-based methods, which fail to achieve additional speedup when reducing from 4 bits to lower bits.
 2. T-MAC inherently supports bit-wise computation for int1/2/3/4, eliminating the need for dequantization. Furthermore, it accommodates all types of activations (e.g., fp8, fp16, int8) using fast table lookup and add instructions, bypassing the need for poorly supported fused-multiply-add instructions.
-3. T-MAC holds the potential to realize performance gains across all processing units (PUs).
 
 ## Cite
 If you find this repository useful, please use the following BibTeX entry for citation.
