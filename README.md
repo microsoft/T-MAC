@@ -7,7 +7,7 @@
 
 ## News
 
-- 08/24/2024 🚀: The T-MAC GEMM (N>1) kernels are now integrated into llama.cpp to accelerate prefill.
+- 08/14/2024 🚀: The T-MAC GEMM (N>1) kernels are now integrated into llama.cpp to accelerate prefill.
 
 - 08/06/2024 🚀: Support 1/2/3/4-bit quantized Llama models in GPTQ format. Test it using the pretrained models released by [EfficientQAT](https://github.com/OpenGVLab/EfficientQAT).
 
