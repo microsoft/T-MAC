@@ -36,6 +36,20 @@ In addition to providing a significant speedup, T-MAC can also match the same pe
 
 > The throughputs of T-MAC are obtained without fast-aggregation. Users can toggle on fast-aggregation through `-fa` to achieve an additional speedup of 10%~20%.
 
+### Prefill Speedup
+
+> TODO: add more results
+
+We have compared the prefill throughput (input_len=256) for Llama-2-7b (W2) on Surface Laptop 7 with two baselines:
+
+- llama.cpp: llama.cpp optimized dequant-based low-bit kernels
+- llama.cpp (OpenBLAS): llama.cpp OpenBLAS backend
+
+| Model           | NUM_THREADS | Batch Size | T-MAC (tokens/sec)      | llama.cpp (OpenBLAS) | llama.cpp |
+|-----------------|-------------|------------|:------------------------|:---------------------|:----------|
+| llama-2-7b (W2) |      4      |    256     |         50.1            |        21.5          |   12.0    |
+| llama-2-7b (W2) |      8      |    256     |         94.4            |        37.7          |   21.3    |
+
 ## Kernel-level Speedup
 
 Our GEMM kernels demonstrate superior performance over SOTA low-bit GEMM on CPU. The following figure shows the speedup compared to llama.cpp for llama-7b kernels during token generation (NUM_THREADS=1):
@@ -44,7 +58,7 @@ Our GEMM kernels demonstrate superior performance over SOTA low-bit GEMM on CPU.
 
 > llama.cpp doesn't provide 1-bit kernel implementation, but we can deduce it from the 2-bit, as it won't bring additional speedup according to the 2/3/4-bit results.
 
-Although we haven't integrated multi-batch (N>1) GEMM into llama.cpp, T-MAC can achieve significant speedup due to reduced computaional cost, which ensures superior performance on prompt evaluation and multi-batch token generation. The following figures shows the speedup compared to llama.cpp using OpenBLAS backend (NUM_THREADS=1):
+T-MAC can achieve significant speedup for multi-batch (N>1) GEMM due to reduced computaional cost, which ensures superior performance on prompt evaluation and multi-batch token generation. The following figures shows the speedup compared to llama.cpp using OpenBLAS backend (NUM_THREADS=1):
 
 ![](assets/gemm.png)
 
@@ -305,7 +319,7 @@ Check logs/2024-07-15-17-10-11.log for inference output
 We will soon:
 
 - [x] Add `I4` format to simplify the deployment of 4-bit models.
-- [ ] Embed T-MAC GEMM kernels into llama.cpp to accelerate prefill/prompt.
+- [x] Embed T-MAC GEMM kernels into llama.cpp to accelerate prefill/prompt.
 - [ ] Optimize for ARMv9 CPU with SME2 through LUTI4
 
 ## Techniques

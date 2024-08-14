@@ -155,7 +155,6 @@ def run_inference():
         '-n', '128',
         '-t', f'{FLAGS.num_threads}',
         '-p', prompt,
-        '-b', '1',
         '-ngl', '0',
         '-c', '2048'
     ]
