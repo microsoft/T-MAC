@@ -224,25 +224,22 @@ cmake --build . --config Release -- /m
 
 > If you encounter errors like `string sub-command regex, mode replace: regex "$" matched an empty string.` during running `cmake .. -A x64` while building TVM, don't worry, and just run `cmake .. -A x64` again. Check [this issue of LLVM](https://github.com/llvm/llvm-project/issues/83802) for more details.
 
-As clang tools in Visual Studio are in fact emulated x64 tools, we recommend to install the native arm64 tools manually.
+As clang tools in Visual Studio are in fact emulated x64 tools, please install the native arm64 tools manually.
 
 - Install CMake from [Offical Windows ARM installer](https://github.com/Kitware/CMake/releases/download/v3.30.1/cmake-3.30.1-windows-arm64.msi).
 - Download Ninja from [Release Page](https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-winarm64.zip) and add to Path.
 - Install Clang from [Release Page](https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/LLVM-17.0.6-woa64.exe).
 
-Please note:
-
-- The conda environment **should only be used while building TVM**. `conda deactivate tvm-build` after building TVM.
-
-Starting the following commands in virtualenv and **outside of Developer Command Prompt/Powershell for VS** to ensure our native clang tools are used.
+Starting the following commands **outside of Developer Command Prompt/Powershell for VS** to ensure our native clang tools are used.
 
 Install `t_mac` from the source:
 
 ```powershell
+conda activate tvm-build
+conda uninstall cmake  # To prevent potential conflict with the native ARM64 cmake
 cd ..\..\..\  # back to project root directory
 $env:MANUAL_BUILD = "1"
 $env:PYTHONPATH = "$pwd\3rdparty\tvm\python"
-# In virtualenv
 pip install wmi  # To detect the native ARM64 CPU within x86_64 python
 pip install . -v  # or pip install -e . -v
 ```
