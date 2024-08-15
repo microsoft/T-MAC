@@ -205,7 +205,7 @@ def parse_args():
     parser.add_argument("-nt", "--num_threads", type=int, default=4)
     parser.add_argument("-m", "--model", type=str, choices=MODELS, default="hf-bitnet-3b")
     parser.add_argument("-p", "--steps_preset", type=str, choices=STEPS_PRESETS.keys(), default="all",
-                        help="Will be overriden by --steps. `fast` is recommended if you are not building the first time.")
+                        help="Will be overridden by --steps. `fast` is recommended if you are not building the first time.")
     steps_str = ", ".join(f"{i}: {step}" for i, (step, _) in enumerate(STEPS))
     parser.add_argument("-s", "--steps", type=str, default=None, help="Select steps from " + steps_str + ". E.g., --steps 0,2,3,5,6")
     parser.add_argument("-gs", "--group_size", type=int, default=None, help="Don't set this argument if you don't know its meaning.")
