@@ -7,7 +7,7 @@
 
 ## News
 
-- 08/17/2024 🚀: T-MAC now supports most quantized models in GPTQ format without the need to manually set kernel shapes!
+- 08/17/2024 🚀: T-MAC now supports 1/2/4-bit quantized models of (almost) any architecture in GPTQ format.
 
 - 08/14/2024 🚀: The T-MAC GEMM (N>1) kernels are now integrated into llama.cpp to accelerate prefill. Check [Prefill speedup](#prefill-speedup) for speedup.
 
@@ -246,7 +246,7 @@ As clang tools in Visual Studio are in fact emulated x64 tools, please install t
 - Download Ninja from [Release Page](https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-winarm64.zip) and add to Path.
 - Install Clang from [Release Page](https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/LLVM-17.0.6-woa64.exe).
 
-Starting the following commands **outside of Developer Command Prompt/Powershell for VS** to ensure our native clang tools are used.
+Run the following commands **outside of Developer Command Prompt/Powershell for VS** to ensure our native clang tools are used.
 
 Install `t_mac` from the source:
 
