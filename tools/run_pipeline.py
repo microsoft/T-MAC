@@ -6,6 +6,7 @@ import shutil
 import logging
 
 from t_mac.platform import get_system_info, is_win, is_arm
+from t_mac.model_utils import get_preset_models
 
 
 logger = logging.getLogger("run_pipeline")
@@ -46,6 +47,7 @@ def compile_kernels():
         '-ags', f'{qargs["act_group_size"]}',
         '-t',
         '-m', f'{FLAGS.model}',
+        '-md', f'{FLAGS.model_dir}',
     ]
     if qargs["zero_point"]:
         command.append('-zp')
@@ -180,15 +182,7 @@ STEPS_PRESETS = {
 }
 
 
-MODELS = [
-    "llama-2-7b-4bit",
-    "llama-2-7b-2bit",
-    "llama-2-13b-2bit",
-    "llama-3-8b-2bit",
-    "llama-3-8b-4bit",
-    "hf-bitnet-3b",
-    "test",
-]
+MODELS = get_preset_models()
 
 
 RED = '\033[31m'

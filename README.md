@@ -7,9 +7,9 @@
 
 ## News
 
-- 08/14/2024 🚀: The T-MAC GEMM (N>1) kernels are now integrated into llama.cpp to accelerate prefill.
+- 08/17/2024 🚀: T-MAC now supports most quantized models in GPTQ format without the need to manually set kernel shapes!
 
-- 08/06/2024 🚀: Support 1/2/3/4-bit quantized Llama models in GPTQ format. Test it using the pretrained models released by [EfficientQAT](https://github.com/OpenGVLab/EfficientQAT).
+- 08/14/2024 🚀: The T-MAC GEMM (N>1) kernels are now integrated into llama.cpp to accelerate prefill. Check [Prefill speedup](#prefill-speedup) for speedup.
 
 - 07/27/2024 ✨: We've noted that T-MAC is even faster than the NPU in token generation speed on the latest Snapdragon X Elite chipset! Check [Compared to NPU](#compared-to-npu) for more details.
 
@@ -285,9 +285,13 @@ huggingface-cli download ChenMnZ/Llama-3-8b-instruct-EfficientQAT-w2g128-GPTQ --
 python tools/run_pipeline.py -o ${model_dir} -m llama-3-8b-2bit
 ```
 
-> Use `-p` or `-s` argument to select the steps you want to run. And use `-u` argument to use our prebuilt kernels for ARM.
-
-> Use `--zero_point` for asymmetric quantization, which is required for *most* EfficientQAT models (only verified with Llama-3-8b-instruct-w4-g128/Llama-3-8b-instruct-w2-g128).
+> - Use `-p` or `-s` argument to select the steps you want to run.
+>
+> - Use `-u` argument to use our prebuilt kernels for ARM.
+>
+> - Use `-m gptq-auto` for GPTQ models not in preset. The kernel shapes and quantization configurations will be automatically detected and validated.
+>
+> - We have supported mainstream LLM models in GPTQ format (e.g., Llama-2, Llama-3, Mistral, Phi-3-mini, etc). Some models are unsupported by [convert script](https://github.com/kaleid-liner/llama.cpp/blob/185d96ce5087b117d6b3a48bc99f158e9daec58d/convert-hf-to-gguf-t-mac.py). We welcome contributions from community.
 
 An example output:
 

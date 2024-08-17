@@ -1,5 +1,6 @@
 from t_mac.ops import QGeMMLUTBitsCodegen, QGeMMLUTBitsPreprocessorCodegen
 from t_mac.utils import get_default_device_kwargs, get_devices
+from t_mac.model_utils import get_preset_models, extract_kernel_shapes, get_quantization_config
 
 import logging
 import os
@@ -13,55 +14,6 @@ from tvm import relay
 
 
 logger = logging.getLogger("compile")
-
-
-PRESET_KERNELS = {
-    "llama-2-7b-4bit": [
-        # bits, M, K, N, m_groups
-        # [4, 12288, 4096, 1, -1],  # unused for llama.cpp
-        [4, 4096, 4096, 1, -1],
-        [4, 11008, 4096, 1, -1],
-        [4, 4096, 11008, 1, -1],
-    ],
-    "llama-2-7b-2bit": [
-        # [2, 12288, 4096, 1, -1],  # unused for llama.cpp
-        [2, 4096, 4096, 1, -1],
-        [2, 11008, 4096, 1, -1],
-        [2, 4096, 11008, 1, -1],
-    ],
-    "llama-2-13b-2bit": [
-        [2, 5120, 5120, 1, -1],
-        [2, 13824, 5120, 1, -1],
-        [2, 5120, 13824, 1, -1],
-    ],
-    "llama-3-8b-2bit": [
-        [2, 4096, 4096, 1, -1],
-        [2, 14336, 4096, 1, -1],
-        [2, 4096, 14336, 1, -1],
-        [2, 1024, 4096, 1, -1],
-    ],
-    "llama-3-8b-4bit": [
-        [4, 4096, 4096, 1, -1],
-        [4, 14336, 4096, 1, -1],
-        [4, 4096, 14336, 1, -1],
-        [4, 1024, 4096, 1, -1],
-    ],
-    "hf-bitnet-3b": [
-        [2, 3200, 8640, 1, 1],
-        [2, 8640, 3200, 1, 1],
-        [2, 3200, 3200, 1, 1],
-    ],
-    "ms-bitnet-3b": [
-        [2, 3200, 800, 1, 1],
-        [2, 3200, 3200, 1, 1],
-        [2, 3200, 10240, 1, 1],
-        [2, 10240, 3200, 1, 1],
-        [2, 800, 3200, 1, 1],
-    ],
-    "test": [
-        # Add customized kernels here
-    ],
-}
 
 
 def compile(
@@ -136,14 +88,26 @@ def compile(
     mod = None
     body_code = ""
     config = configparser.ConfigParser()
-    for bits, M, K, N, m_groups in PRESET_KERNELS[FLAGS.preset_model]:
+    kernel_shapes = extract_kernel_shapes(FLAGS.preset_model, FLAGS.model_dir)
+    quantization_config = get_quantization_config(FLAGS.model_dir)
+    if quantization_config["quant_method"] != "gptq":
+        quantization_config = None
+
+    group_size = FLAGS.group_size
+    zero_point = FLAGS.zero_point
+    if quantization_config is not None:
+        group_size = quantization_config["group_size"]
+        zero_point = not quantization_config["sym"]
+    for bits, M, K, N, m_groups in kernel_shapes:
+        if quantization_config is not None and bits != quantization_config["bits"]:
+            logger.warning("Invalid kernels")
         qgemm_lut = QGeMMLUTBitsCodegen(
             name="qgemm_lut",
-            group_size=FLAGS.group_size,
+            group_size=group_size,
             fast_aggregation=FLAGS.fast_aggregation,
             bits=bits,
             aggregation_dtype=aggregation_dtype,
-            zero_point=FLAGS.zero_point,
+            zero_point=zero_point,
             **codegen_kwargs,
         )
         preprocessor = QGeMMLUTBitsPreprocessorCodegen(
@@ -183,7 +147,7 @@ def compile(
         mod = insert(mod, qgemm_mod)
         # Write kcfg
         scales_size = qgemm_lut.m_groups if qgemm_lut.m_groups != -1 else (M // bits * K // qgemm_lut.group_size)
-        if FLAGS.zero_point:
+        if zero_point:
             scales_size *= 2
         config[template_name] = {
             "bm": str(qgemm_lut.bm),
@@ -250,12 +214,14 @@ def parse_args():
 
     parser.add_argument("-nt", "--num_threads", type=int, default=16)  # 16 big cores for M2-ultra
     parser.add_argument("-ta", "--thread_affinity", type=int, default=1)
-    parser.add_argument("-gs", "--group_size", type=int, default=128)
+    parser.add_argument("-gs", "--group_size", type=int, default=128, help="128 for w2g128/w4g128 or 64 for w2g64/w4g64")
     parser.add_argument("-ags", "--act_group_size", type=int, default=64, help="-1 for BitNet-like unified scale")
     parser.add_argument("-fa", "--fast_aggregation", action="store_true")
     parser.add_argument("-zp", "--zero_point", action="store_true")
 
-    parser.add_argument("-m", "--preset_model", type=str, choices=PRESET_KERNELS.keys(), default="hf-bitnet-3b")
+    parser.add_argument("-m", "--preset_model", type=str, choices=get_preset_models(), default="hf-bitnet-3b",
+                        help="Use gptq-auto only if your models are not in presets. gptq-auto will automatically detect kernel shapes for you. Only support quantized models in GPTQ format.")
+    parser.add_argument("-md", "--model_dir", type=str, default=None, help="Set this if using gptq-auto")
     return parser.parse_args()
 
 
