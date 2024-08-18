@@ -326,6 +326,7 @@ We will soon:
 
 - [x] Add `I4` format to simplify the deployment of 4-bit models.
 - [x] Embed T-MAC GEMM kernels into llama.cpp to accelerate prefill/prompt.
+- [ ] Android cross-compilation guidance
 - [ ] Optimize for ARMv9 CPU with SME2 through LUTI4
 
 ## Techniques
