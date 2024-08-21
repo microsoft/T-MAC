@@ -7,6 +7,8 @@
 
 ## News
 
+- 08/21/2024 🎉🎉: T-MAC paper is accepted by EuroSys 2025.
+
 - 08/17/2024 🚀: T-MAC now supports 1/2/4-bit quantized models of (almost) any architecture in GPTQ format.
 
 - 08/14/2024 🚀: The T-MAC GEMM (N>1) kernels are now integrated into llama.cpp to accelerate prefill. Check [Prefill speedup](#prefill-speedup) for speedup.
