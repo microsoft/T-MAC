@@ -36,7 +36,16 @@ In addition to providing a significant speedup, T-MAC can also match the same pe
     <p>T-MAC achieves significant speedup at single-threads and consumes much less CPU cores to reach the same throughput</p>
 </h3>
 
-> The throughputs of T-MAC are obtained without fast-aggregation. Users can toggle on fast-aggregation through `-fa` to achieve an additional speedup of 10%~20%.
+> The throughputs of T-MAC are obtained without fast-aggregation. Users can toggle on fast-aggregation through `-fa` to achieve an additional speedup of 10%~20% with.
+
+The figure above shows that when the model size is increased to 7B-4bit, the multi-threading throughput of llama.cpp on Surface Laptop 7 becomes highly unstable due to the thermal threshold under *Better Performance* mode. This instability is not observed with T-MAC, as LUT is more energy-efficient compared to multiply-add operations. To establish a more solid baseline, we re-profile the performance under the *Best Performance* mode:
+
+<h3 align="center">
+    <img src="assets/e2e_threads_surface_max.png">
+    <p>The throughput of T-MAC and llama.cpp both increase by maximizing CPU frequency</p>
+</h3>
+
+> However, under real-world situations, CPUs can't maintain maximum frequency consistently on edge devices. The performance of llama.cpp will degrade as indicated by the results under the *Better Performance* mode.
 
 ### Prefill Speedup
 
@@ -59,6 +68,8 @@ Our GEMM kernels demonstrate superior performance over SOTA low-bit GEMM on CPU.
 ![](assets/gemv_t1.png)
 
 > llama.cpp doesn't provide 1-bit kernel implementation, but we can deduce it from the 2-bit, as it won't bring additional speedup according to the 2/3/4-bit results.
+>
+> Surface stands for Surface Book 3 in this section.
 
 T-MAC can achieve significant speedup for multi-batch (N>1) GEMM due to reduced computaional cost, which ensures superior performance on prompt evaluation and multi-batch token generation. The following figures shows the speedup compared to llama.cpp using OpenBLAS backend (NUM_THREADS=1):
 
@@ -93,6 +104,8 @@ When deploying the llama-2-7b-4bit model on it, the NPU can only generate 10.4 t
 | NPE (NPU)       | llama-2-7b (W4) |      -      |          10.4           |
 
 > For fair comparison, we have aligned our settings with those of the NPU, including a input length of 1024 and an output length of 1024. Although Qualcomms deploy a model of 3.6GB, we deploy a slightly larger model of 3.7GB, due to our token-embed remaining un-quantized.
+>
+> By maximizing CPU frequency, T-MAC (CPU) can even get better results. Refer to the discussion in [End-2-End speedup](#end-2-end-speedup).
 
 ### Compared to CUDA GPU
 
