@@ -15,7 +15,7 @@ import platform
 ROOT_DIR = os.path.dirname(__file__)
 PLATFORM_LLVM_MAP = {
     # (system, processor): (llvm_version, file_suffix)
-    ("Darwin", "arm64"): ("17.0.6", "arm64-apple-darwin22.0.tar.xz"),
+    ("Darwin", "aarch64"): ("17.0.6", "arm64-apple-darwin22.0.tar.xz"),
     ("Linux", "aarch64"): ("17.0.6", "aarch64-linux-gnu.tar.xz"),
     # ("Windows", "x86_64"): ("18.1.6", "x86_64-pc-windows-msvc.tar.xz"),
     ("Linux", "x86_64"): ("17.0.6", "x86_64-linux-gnu-ubuntu-22.04.tar.xz"),
@@ -35,6 +35,8 @@ def is_win() -> bool:
 ARCH_MAP = {
     "arm64": "aarch64",
     "AMD64": "x86_64",
+    "ARM64": "aarch64",
+    "x86": "x86_64",
 }
 
 
