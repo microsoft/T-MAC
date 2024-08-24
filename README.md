@@ -335,6 +335,8 @@ Running STEP.6: Run inference
 Check logs/2024-07-15-17-10-11.log for inference output
 ```
 
+Please note that main is used here do demo token generation output. Use `3rdparty/llama.cpp/build/bin/llama-bench` to benchmark performance. A benchmark script is also provided at `tools/bench_e2e.py`.
+
 ## Upcoming Features
 
 We will soon:
