@@ -277,6 +277,16 @@ pip install . -v  # or pip install -e . -v
 
 </details>
 
+</details>
+<details>
+<summary><h3>Android</h3></summary>
+
+First, follow the normal workflow to install T-MAC on your PC (OSX/Ubuntu recommended).
+
+Then, refer to [Android Cross Compilation Guidance](docs/android.md).
+
+</details>
+
 ### Verification
 
 After that, you can verify the installation through: `python -c "import t_mac; print(t_mac.__version__); from tvm.contrib.clang import find_clang; print(find_clang())"`.
@@ -335,13 +345,16 @@ Running STEP.6: Run inference
 Check logs/2024-07-15-17-10-11.log for inference output
 ```
 
+Please note that main is used here do demo token generation output. Use `3rdparty/llama.cpp/build/bin/llama-bench` to benchmark performance. A benchmark script is also provided at `tools/bench_e2e.py`.
+
 ## Upcoming Features
 
 We will soon:
 
 - [x] Add `I4` format to simplify the deployment of 4-bit models.
 - [x] Embed T-MAC GEMM kernels into llama.cpp to accelerate prefill/prompt.
-- [ ] Android cross-compilation guidance
+- [x] Android cross-compilation guidance
+- [ ] Merge latest llama.cpp for more functionalities
 - [ ] Optimize for ARMv9 CPU with SME2 through LUTI4
 
 ## Techniques

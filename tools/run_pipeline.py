@@ -5,7 +5,7 @@ from datetime import datetime
 import shutil
 import logging
 
-from t_mac.platform import get_system_info, is_win, is_arm
+from t_mac.platform import is_win, is_arm, get_arch, get_devices, get_default_device_kwargs
 from t_mac.model_utils import get_preset_models
 
 
@@ -26,10 +26,30 @@ def run_command(command, pwd):
     return log_file
 
 
+def run_adb_command(command, pwd):
+    new_command = ['adb']
+    if FLAGS.adb_serial:
+        new_command.append(f'-s {FLAGS.adb_serial}')
+    new_command = new_command + command
+    return run_command(new_command, pwd)
+
+
+def is_cross_compiling():
+    return get_default_device_kwargs()["target"] != get_default_device_kwargs(FLAGS.device)["target"]
+
+
+def get_llamacpp_build_dir():
+    llamacpp_dir = os.path.join(ROOT_DIR, "3rdparty", "llama.cpp")
+    if is_cross_compiling():
+        return os.path.join(llamacpp_dir, f"build-{FLAGS.device}")
+    else:
+        return os.path.join(llamacpp_dir, f"build")
+
+
 def compile_kernels():
     deploy_dir = os.path.join(ROOT_DIR, "deploy")
     tuned_dir = os.path.join(deploy_dir, "tuned")
-    prebuilt_dir = os.path.join(tuned_dir, f"{get_system_info()[1]}-{FLAGS.model}")
+    prebuilt_dir = os.path.join(tuned_dir, f"{get_arch(FLAGS.device)}-{FLAGS.model}")
     if FLAGS.use_prebuilt and os.path.isdir(prebuilt_dir):
         print(f"  Copy prebuilt kernels from {prebuilt_dir} to {tuned_dir}")
         shutil.copytree(prebuilt_dir, tuned_dir, dirs_exist_ok=True)
@@ -45,14 +65,20 @@ def compile_kernels():
         '-gc',
         '-gs', f'{qargs["group_size"]}',
         '-ags', f'{qargs["act_group_size"]}',
-        '-t',
         '-m', f'{FLAGS.model}',
         '-md', f'{FLAGS.model_dir}',
     ]
+    if not FLAGS.disable_tune:
+        command.append('-t')
     if qargs["zero_point"]:
         command.append('-zp')
     if FLAGS.reuse_tuned:
         command.append('-r')
+    if FLAGS.device:
+        command.append('-d')
+        command.append(f'{FLAGS.device}')
+    if FLAGS.verbose:
+        command.append('-v')
     run_command(command, deploy_dir)
 
 
@@ -110,7 +136,7 @@ def convert_models():
 
 
 def cmake_llamacpp():
-    build_dir = os.path.join(ROOT_DIR, "3rdparty", "llama.cpp", "build")
+    build_dir = get_llamacpp_build_dir()
     cmake_prefix_path = os.path.join(ROOT_DIR, "install", "lib", "cmake", "t-mac")
     command = [
         'cmake', '..',
@@ -119,7 +145,20 @@ def cmake_llamacpp():
         '-DCMAKE_BUILD_TYPE=Release',
         '-DLLAMA_LLAMAFILE_DEFAULT=OFF',
     ]
-    if is_win():
+    if FLAGS.device == "android":
+        try:
+            ndk_home = FLAGS.ndk_home or os.environ["NDK_HOME"]
+        except KeyError:
+            raise KeyError("Missing NDK_HOME. Please either specify by -ndk or set environ NDK_HOME")
+        command.append(f"-DCMAKE_TOOLCHAIN_FILE={ndk_home}/build/cmake/android.toolchain.cmake")
+        command.append("-DANDROID_ABI=arm64-v8a")
+        command.append("-DANDROID_PLATFORM=android-23")
+        command.append("-DCMAKE_C_FLAGS=-march=armv8.2a+dotprod+fp16")
+        command.append("-DLLAMA_METAL=OFF")
+        command.append("-DLLAMA_ACCELERATE=OFF")
+        command.append("-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH")
+        command.append("-DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH")
+    elif is_win():
         if is_arm():
             command.append("-DCMAKE_C_COMPILER=clang")
             command.append("-DCMAKE_CXX_COMPILER=clang++")
@@ -136,13 +175,13 @@ def cmake_llamacpp():
 
 
 def build_llamacpp():
-    build_dir = os.path.join(ROOT_DIR, "3rdparty", "llama.cpp", "build")
+    build_dir = get_llamacpp_build_dir()
     command = ['cmake', '--build', '.', '--target', 'main', 'llama-bench', '--config', 'Release']
     run_command(command, build_dir)
 
 
 def run_inference():
-    build_dir = os.path.join(ROOT_DIR, "3rdparty", "llama.cpp", "build")
+    build_dir = get_llamacpp_build_dir()
     out_path = os.path.join(FLAGS.model_dir, f"ggml-model.{FLAGS.quant_type}.gguf")
     if is_win():
         main_path = os.path.join(build_dir, "bin", "Release", "main.exe")
@@ -151,16 +190,48 @@ def run_inference():
     else:
         main_path = os.path.join(build_dir, "bin", "main")
     prompt = "Microsoft Corporation is an American multinational corporation and technology company headquartered in Redmond, Washington."
-    command = [
-        f'{main_path}',
-        '-m', f'{out_path}',
-        '-n', '128',
-        '-t', f'{FLAGS.num_threads}',
-        '-p', prompt,
-        '-ngl', '0',
-        '-c', '2048'
-    ]
-    log_file = run_command(command, build_dir)
+    if FLAGS.device == "android":
+        remote_bin_path = os.path.join(FLAGS.remote_dir, "bin")
+        # TODO: verify in Windows
+        command = ['push', os.path.join(build_dir, "bin"), FLAGS.remote_dir]
+        run_adb_command(command, build_dir)
+        remote_main_path = os.path.join(remote_bin_path, "main")
+        command = ['shell', 'chmod', '-R', '+x', remote_bin_path]
+        run_adb_command(command, build_dir)
+        remote_out_path = os.path.join(
+            FLAGS.remote_dir,
+            f"{os.path.basename(FLAGS.model_dir)}-{os.path.basename(out_path)}",
+        )
+        if not FLAGS.skip_push_model:
+            command = ['push', out_path, remote_out_path]
+            run_adb_command(command, build_dir)
+        kcfg_path = os.path.join(ROOT_DIR, "install", "lib", "kcfg.ini")
+        remote_kcfg_path = os.path.join(FLAGS.remote_dir, "kcfg.ini")
+        command = ['push', kcfg_path, remote_kcfg_path]
+        run_adb_command(command, build_dir)
+        command = [
+            'shell',
+            f'TMAC_KCFG_FILE={remote_kcfg_path}',
+            f'{remote_main_path}',
+            '-m', f'{remote_out_path}',
+            '-n', '128',
+            '-t', f'{FLAGS.num_threads}',
+            '-p', f'"{prompt}"',
+            '-ngl', '0',
+            '-c', '2048'
+        ]
+        log_file = run_adb_command(command, build_dir)
+    else:
+        command = [
+            f'{main_path}',
+            '-m', f'{out_path}',
+            '-n', '128',
+            '-t', f'{FLAGS.num_threads}',
+            '-p', prompt,
+            '-ngl', '0',
+            '-c', '2048'
+        ]
+        log_file = run_command(command, build_dir)
     print(GREEN + f"Check {log_file} for inference output" + RESET)
 
 
@@ -210,8 +281,15 @@ def parse_args():
     parser.add_argument("-nzp", "--no_zero_point", action="store_false", help="Enforce disable zero_point. Don't set this argument if you don't know its meaning.")
 
     parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument("-dt", "--disable_tune", action="store_true")
     parser.add_argument("-r", "--reuse_tuned", action="store_true")
     parser.add_argument("-u", "--use_prebuilt", action="store_true")
+
+    parser.add_argument("-d", "--device", type=str, choices=get_devices(), default="", help="Set this argument if you are cross compiling for another device.")
+    parser.add_argument("-as", "--adb_serial", type=str, default="", help="ADB serial number. Set this argument if there are multiple adb devices connected.")
+    parser.add_argument("-rd", "--remote_dir", type=str, default="/data/local/tmp", help="Remote path to store bin and models.")
+    parser.add_argument("-ndk", "--ndk_home", type=str, default="", help="NDK home")
+    parser.add_argument("-spm", "--skip_push_model", action="store_true", help="Suppose the model is unchanged to skip pushing the model file")
 
     parser.set_defaults(zero_point=None)
     return parser.parse_args()
