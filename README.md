@@ -281,9 +281,9 @@ pip install . -v  # or pip install -e . -v
 <details>
 <summary><h3>Android</h3></summary>
 
-First, install T-MAC on your PC follow the normal workflow depending on your OS (OSX/Ubuntu recommended).
+First, follow the normal workflow to install T-MAC on your PC (OSX/Ubuntu recommended).
 
-Then, refer to [Android cross compilation guidance](docs/android.md).
+Then, refer to [Android Cross Compilation Guidance](docs/android.md).
 
 </details>
 
@@ -353,7 +353,8 @@ We will soon:
 
 - [x] Add `I4` format to simplify the deployment of 4-bit models.
 - [x] Embed T-MAC GEMM kernels into llama.cpp to accelerate prefill/prompt.
-- [ ] Android cross-compilation guidance
+- [x] Android cross-compilation guidance
+- [ ] Merge latest llama.cpp for more functionalities
 - [ ] Optimize for ARMv9 CPU with SME2 through LUTI4
 
 ## Techniques

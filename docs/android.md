@@ -11,11 +11,11 @@ export PATH="$HOME/Library/Android/sdk/platform-tools:$PATH"
 export NDK_HOME="$HOME/Library/Android/sdk/ndk/26.1.10909125"
 ```
 
-**There are three options to cross-compile T-MAC for Android, from easy to hard**:
+**There are three options to cross-compile T-MAC for Android, from simple to complex**:
 
-### Use Prebuilt Kernels
+### Option.1: Use Prebuilt Kernels
 
-Using prebuilt kernels is the easiest solution.
+Using prebuilt kernels is the simplest solution.
 
 ```
 python tools/run_pipeline.py -o ~/Downloads/test_models/llama-2-7b-eqat-w2g128-gptq -m llama-2-7b-2bit -d android -ndk $NDK_HOME -u
@@ -23,11 +23,11 @@ python tools/run_pipeline.py -o ~/Downloads/test_models/llama-2-7b-eqat-w2g128-g
 
 Please note these arguments:
 - `-as`, `--adb_serial`: If there are multiple ADB devices connected to your host computer, you need to specify it according to results of `adb devices -l`.
-- `-rd`, `--remote_dir`: Our binaries and models are pushed to `/data/local/tmp` for execution. Set this argument to change the directory.
+- `-rd`, `--remote_dir`: Our binaries and models are pushed to `/data/local/tmp` for execution. Alter this argument to change the directory.
 
 Here, we specify `-u` to use the prebuilt kernels. The performance may not be optimal.
 
-### Cross Compilation without Tuning
+### Option.2: Cross Compilation without Tuning
 
 ```
 cd $NDK_HOME/build/tools
@@ -39,7 +39,7 @@ python tools/run_pipeline.py -o ~/Downloads/test_models/llama-2-7b-eqat-w2g128-g
 
 Here, we specify `-dt` to disable tuning. The performance may not be optimal.
 
-### Tuning (experimental)
+### Option.3: Tuning (experimental)
 
 Install TVM RPC APK:
 
