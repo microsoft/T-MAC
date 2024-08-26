@@ -96,3 +96,13 @@ export TVM_NDK_CC=/opt/android-toolchain-arm64/bin/clang++
 # Back to T-MAC root dir
 python tools/run_pipeline.py -o ~/Downloads/test_models/llama-2-7b-eqat-w2g128-gptq -m llama-2-7b-2bit -d android -ndk $NDK_HOME
 ```
+
+### Trouble-shooting
+
+1. No device listed `python -m tvm.exec.query_rpc_tracker`
+
+    Make sure your firewall isn't blocking incoming connections for Python. Or close your firewall.
+
+2. `Error in RPC Tracker: [Errno 54] Connection reset by peer`
+
+    Make sure the TVM RPC is activated and not brought to background during tuning.
