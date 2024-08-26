@@ -65,16 +65,20 @@ def compile_kernels():
         '-gc',
         '-gs', f'{qargs["group_size"]}',
         '-ags', f'{qargs["act_group_size"]}',
-        '-t',
         '-m', f'{FLAGS.model}',
         '-md', f'{FLAGS.model_dir}',
     ]
+    if not FLAGS.disable_tune:
+        command.append('-t')
     if qargs["zero_point"]:
         command.append('-zp')
     if FLAGS.reuse_tuned:
         command.append('-r')
     if FLAGS.device:
-        command.append(f'-d {FLAGS.device}')
+        command.append('-d')
+        command.append(f'{FLAGS.device}')
+    if FLAGS.verbose:
+        command.append('-v')
     run_command(command, deploy_dir)
 
 
@@ -277,6 +281,7 @@ def parse_args():
     parser.add_argument("-nzp", "--no_zero_point", action="store_false", help="Enforce disable zero_point. Don't set this argument if you don't know its meaning.")
 
     parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument("-dt", "--disable_tune", action="store_true")
     parser.add_argument("-r", "--reuse_tuned", action="store_true")
     parser.add_argument("-u", "--use_prebuilt", action="store_true")
 

@@ -104,6 +104,7 @@ _device_kwargs = {
             "build_func": "ndk",
             "timeout": 600,
         },
+        "cc": os.environ.get("TVM_NDK_CC", "clang++"),
         "cc_opts": ["-O3", "-march=armv8.2a+fp16", "-mllvm", "-inline-threshold=10000"],
         "out_dtype": "float16",
         "aggregation_dtype": "int32",

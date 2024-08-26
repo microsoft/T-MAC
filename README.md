@@ -277,6 +277,16 @@ pip install . -v  # or pip install -e . -v
 
 </details>
 
+</details>
+<details>
+<summary><h3>Android</h3></summary>
+
+First, install T-MAC on your PC follow the normal workflow depending on your OS (OSX/Ubuntu recommended).
+
+Then, refer to [Android cross compilation guidance](docs/android.md).
+
+</details>
+
 ### Verification
 
 After that, you can verify the installation through: `python -c "import t_mac; print(t_mac.__version__); from tvm.contrib.clang import find_clang; print(find_clang())"`.

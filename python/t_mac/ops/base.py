@@ -96,7 +96,9 @@ class OpCodegen:
             tuner = autotvm.tuner.GridSearchTuner(task)
 
             def _preload_function(remote: rpc.RPCSession, build_result: tvm.runtime.Module):
-                remote.get_function("runtime.config_threadpool")(thread_affinity, self.num_threads)
+                # remote.get_function("runtime.config_threadpool")(thread_affinity, self.num_threads)
+                # TODO: fix this in Android RPC
+                pass
 
             if self.remote_kwargs is not None:
                 measure_option = autotvm.measure_option(
