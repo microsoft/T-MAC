@@ -149,7 +149,7 @@ Install `t_mac` from the source (please run in a `virtualenv`):
 ```bash
 git clone --recursive https://github.com/microsoft/T-MAC.git
 # in virtualenv
-pip install . -v  # or pip install -e . -v
+pip install -e . -v
 source build/t-mac-envs.sh
 ```
 
@@ -172,7 +172,7 @@ Install `t_mac` from the source (please run in a `virtualenv`):
 ```bash
 git clone --recursive https://github.com/microsoft/T-MAC.git
 # in virtualenv
-pip install . -v  # or pip install -e . -v
+pip install -e . -v
 source build/t-mac-envs.sh
 ```
 
@@ -217,7 +217,7 @@ Install `t_mac` from the source:
 cd ..\..\..\  # back to project root directory
 $env:MANUAL_BUILD = "1"
 $env:PYTHONPATH = "$pwd\3rdparty\tvm\python"
-pip install . -v  # or pip install -e . -v
+pip install -e . -v
 ```
 
 </details>
@@ -272,7 +272,7 @@ cd ..\..\..\  # back to project root directory
 $env:MANUAL_BUILD = "1"
 $env:PYTHONPATH = "$pwd\3rdparty\tvm\python"
 pip install wmi  # To detect the native ARM64 CPU within x86_64 python
-pip install . -v  # or pip install -e . -v
+pip install -e . -v
 ```
 
 </details>
