@@ -12,7 +12,7 @@ import os
 import urllib.request
 import platform
 
-ROOT_DIR = os.path.dirname(__file__)
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 PLATFORM_LLVM_MAP = {
     # (system, processor): (llvm_version, file_suffix)
     ("Darwin", "aarch64"): ("17.0.6", "arm64-apple-darwin22.0.tar.xz"),
@@ -58,6 +58,7 @@ def download_and_extract_llvm(extract_path="build"):
         str: The path where the LLVM archive was extracted.
     """
 
+    extract_path = get_path(extract_path)
     llvm_version, file_suffix = PLATFORM_LLVM_MAP[get_system_info()]
     base_url = (f"https://github.com/llvm/llvm-project/releases/download/llvmorg-{llvm_version}")
     file_name = f"clang+llvm-{llvm_version}-{file_suffix}"
@@ -96,7 +97,7 @@ def update_submodules():
 
 def build_tvm(llvm_config_path):
     """Configures and builds TVM."""
-    os.chdir("3rdparty/tvm")
+    os.chdir(get_path("3rdparty/tvm"))
     if not os.path.exists("build"):
         os.makedirs("build")
     os.chdir("build")
@@ -151,10 +152,10 @@ class TMACBuilPydCommand(build_py):
             build_tvm(llvm_path)
 
             llvm_bin_path = os.path.abspath(os.path.dirname(llvm_path))
-            tvm_python_path = os.path.abspath(os.path.join("3rdparty/tvm", "python"))
+            tvm_python_path = os.path.abspath(get_path(os.path.join("3rdparty/tvm", "python")))
 
             envs = "export PATH={}:$PATH\nexport PYTHONPATH={}:$PYTHONPATH\n".format(llvm_bin_path, tvm_python_path)
-            env_file_path = os.path.abspath(os.path.join("build", "t-mac-envs.sh"))
+            env_file_path = os.path.abspath(get_path(os.path.join("build", "t-mac-envs.sh")))
             with open(env_file_path, "w") as env_file:
                 env_file.write(envs)
             print("Installation success. Please set environment variables through `source {}`".format(env_file_path))
