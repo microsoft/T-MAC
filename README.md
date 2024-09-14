@@ -2,7 +2,12 @@
 
 <h3 align="center">
     <img src="assets/demo.gif">
-    <p><a href=https://huggingface.co/1bitLLM/bitnet_b1_58-3B>BitNet</a> on T-MAC (LUT-based) vs llama.cpp (dequantization-based)</p>
+    <p><a href=https://huggingface.co/1bitLLM/bitnet_b1_58-3B>BitNet</a> on M2-Ultra with T-MAC (LUT-based) vs llama.cpp (dequantization-based)</p>
+</h3>
+
+<h3 align="center">
+    <img src="assets/e2e_surface7_bitnet_phi.png">
+    <p>BitNet and Phi-3.5 tokens/s with # of CPU cores on Surface Laptop 7</p>
 </h3>
 
 ## News
@@ -178,6 +183,8 @@ source build/t-mac-envs.sh
 
 The command will download clang+llvm and build tvm from source. So it might take a bit of time.
 
+> **Note**: We have noticed many users attempting to evaluate T-MAC on old-gen x86 platforms. However, x86 CPUs vary dramatically, and due to unawareness of AI workloads, most of these platforms have extremely low memory bandwidth (even lower than Raspberry Pi 5). Our current tests do not encompass all x86 platforms, particularly older generations. As a result, we cannot guarantee significant speedup (especially for 4-bit token generation) on all x86 platforms. We recommend Surface Book 3 or ARM devices to evaluate T-MAC.
+
 </details>
 <details>
 <summary><h3>Windows (x86_64)</h3></summary>
@@ -349,13 +356,7 @@ Please note that main is used here do demo token generation output. Use `3rdpart
 
 ## Upcoming Features
 
-We will soon:
-
-- [x] Add `I4` format to simplify the deployment of 4-bit models.
-- [x] Embed T-MAC GEMM kernels into llama.cpp to accelerate prefill/prompt.
-- [x] Android cross-compilation guidance
-- [ ] Merge latest llama.cpp for better multi-threading performance and more functionalities
-- [ ] Optimize for ARMv9 CPU with SME2 through LUTI4
+Check [T-MAC v1.0.0 release plan](https://github.com/microsoft/T-MAC/issues/45) for upcoming features.
 
 ## Techniques
 
