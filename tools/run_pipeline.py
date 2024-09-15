@@ -140,10 +140,9 @@ def cmake_llamacpp():
     cmake_prefix_path = os.path.join(ROOT_DIR, "install", "lib", "cmake", "t-mac")
     command = [
         'cmake', '..',
-        '-DLLAMA_TMAC=ON',
+        '-DGGML_TMAC=ON',
         f'-DCMAKE_PREFIX_PATH={cmake_prefix_path}',
         '-DCMAKE_BUILD_TYPE=Release',
-        '-DLLAMA_LLAMAFILE_DEFAULT=OFF',
     ]
     if FLAGS.device == "android":
         try:
@@ -154,8 +153,8 @@ def cmake_llamacpp():
         command.append("-DANDROID_ABI=arm64-v8a")
         command.append("-DANDROID_PLATFORM=android-23")
         command.append("-DCMAKE_C_FLAGS=-march=armv8.2a+dotprod+fp16")
-        command.append("-DLLAMA_METAL=OFF")
-        command.append("-DLLAMA_ACCELERATE=OFF")
+        command.append("-DGGML_METAL=OFF")
+        command.append("-DGGML_ACCELERATE=OFF")
         command.append("-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH")
         command.append("-DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH")
     elif is_win():
@@ -176,7 +175,7 @@ def cmake_llamacpp():
 
 def build_llamacpp():
     build_dir = get_llamacpp_build_dir()
-    command = ['cmake', '--build', '.', '--target', 'main', 'llama-bench', '--config', 'Release']
+    command = ['cmake', '--build', '.', '--target', 'llama-cli', 'llama-bench', '--config', 'Release']
     run_command(command, build_dir)
 
 
@@ -184,18 +183,18 @@ def run_inference():
     build_dir = get_llamacpp_build_dir()
     out_path = os.path.join(FLAGS.model_dir, f"ggml-model.{FLAGS.quant_type}.gguf")
     if is_win():
-        main_path = os.path.join(build_dir, "bin", "Release", "main.exe")
+        main_path = os.path.join(build_dir, "bin", "Release", "llama-cli.exe")
         if not os.path.exists(main_path):
-            main_path = os.path.join(build_dir, "bin", "main")
+            main_path = os.path.join(build_dir, "bin", "llama-cli")
     else:
-        main_path = os.path.join(build_dir, "bin", "main")
+        main_path = os.path.join(build_dir, "bin", "llama-cli")
     prompt = "Microsoft Corporation is an American multinational corporation and technology company headquartered in Redmond, Washington."
     if FLAGS.device == "android":
         remote_bin_path = os.path.join(FLAGS.remote_dir, "bin")
         # TODO: verify in Windows
         command = ['push', os.path.join(build_dir, "bin"), FLAGS.remote_dir]
         run_adb_command(command, build_dir)
-        remote_main_path = os.path.join(remote_bin_path, "main")
+        remote_main_path = os.path.join(remote_bin_path, "llama-cli")
         command = ['shell', 'chmod', '-R', '+x', remote_bin_path]
         run_adb_command(command, build_dir)
         remote_out_path = os.path.join(
