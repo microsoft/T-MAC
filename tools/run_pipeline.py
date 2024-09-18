@@ -83,6 +83,8 @@ def compile_kernels():
 
 
 def _clean_cmake(build_dir):
+    command = ['cmake', '--build', '.', '--target', 'clean']
+    run_command(command, build_dir)
     shutil.rmtree(os.path.join(build_dir, "CMakeFiles"), ignore_errors=True)
     shutil.rmtree(os.path.join(build_dir, "CMakeCache.txt"), ignore_errors=True)
 
@@ -125,12 +127,13 @@ def convert_models():
     llamacpp_dir = os.path.join(ROOT_DIR, "3rdparty", "llama.cpp")
     command = [
         'python',
-        'convert-hf-to-gguf-t-mac.py',
+        'convert_hf_to_gguf.py',
         f'{model_dir}',
-        '--outtype',
-        f'{FLAGS.quant_type}',
+        '--outtype', f'{FLAGS.quant_type}',
         '--outfile', f'{out_path}',
         '--kcfg', f'{kcfg_path}',
+        '--enable-t-mac',
+        '--verbose',
     ]
     run_command(command, llamacpp_dir)
 
@@ -275,7 +278,7 @@ def parse_args():
     parser.add_argument("-gs", "--group_size", type=int, default=None, help="Don't set this argument if you don't know its meaning.")
     parser.add_argument("-ags", "--act_group_size", type=int, default=None, help="Don't set this argument if you don't know its meaning.")
     parser.add_argument("-ld", "--logs_dir", type=str, default="logs")
-    parser.add_argument("-q", "--quant_type", type=str, choices=["in", "i1", "i2", "i3", "i4"], default="in")
+    parser.add_argument("-q", "--quant_type", type=str, choices=["int_n", "f16", "f32"], default="int_n")
     parser.add_argument("-zp", "--zero_point", action="store_true", help="Enforce enable zero_point. Required by EfficientQAT models.")
     parser.add_argument("-nzp", "--no_zero_point", action="store_false", help="Enforce disable zero_point. Don't set this argument if you don't know its meaning.")
 
