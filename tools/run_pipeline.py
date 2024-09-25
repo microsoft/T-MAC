@@ -12,7 +12,7 @@ from t_mac.model_utils import get_preset_models
 logger = logging.getLogger("run_pipeline")
 
 
-def run_command(command, pwd):
+def run_command(command, pwd, ignore_errors=False):
     print(f"  Running command in {pwd}:")
     print(f"    {' '.join(command)}")
     os.makedirs(FLAGS.logs_dir, exist_ok=True)
@@ -21,8 +21,9 @@ def run_command(command, pwd):
         try:
             subprocess.check_call(command, cwd=pwd, stdout=fp, stderr=fp)
         except subprocess.CalledProcessError as err:
-            print(RED + f"Please check {log_file} for what's wrong" + RESET)
-            exit(-1)
+            if not ignore_errors:
+                print(RED + f"Please check {log_file} for what's wrong" + RESET)
+                exit(-1)
     return log_file
 
 
@@ -84,7 +85,7 @@ def compile_kernels():
 
 def _clean_cmake(build_dir):
     command = ['cmake', '--build', '.', '--target', 'clean']
-    run_command(command, build_dir)
+    run_command(command, build_dir, ignore_errors=True)
     shutil.rmtree(os.path.join(build_dir, "CMakeFiles"), ignore_errors=True)
     shutil.rmtree(os.path.join(build_dir, "CMakeCache.txt"), ignore_errors=True)
 
