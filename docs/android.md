@@ -2,7 +2,9 @@
 
 ### Pre-requisites
 
-Install platform-tools and ndk from [Android Studio](https://developer.android.com/studio) or [command line tools](https://developer.android.com/studio#command-line-tools-only). Please make sure that `adb` can be found in PATH and set `NDK_HOME`.
+Install platform-tools and ndk (verified with version 26.1) from [Android Studio](https://developer.android.com/studio) or [command line tools](https://developer.android.com/studio#command-line-tools-only). Please make sure that `adb` can be found in PATH and set `NDK_HOME`.
+
+> Using verified NDK version is recommended. TVM has stringent requirements for Clang that comes with the NDK. If you opt for Option.2 or Option.3, we recommend using Clang version 17 shipped with NDK version 26.
 
 For example, in my PC:
 
