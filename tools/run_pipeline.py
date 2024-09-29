@@ -147,6 +147,7 @@ def cmake_llamacpp():
         '-DGGML_TMAC=ON',
         f'-DCMAKE_PREFIX_PATH={cmake_prefix_path}',
         '-DCMAKE_BUILD_TYPE=Release',
+        '-DGGML_OPENMP=OFF',
     ]
     if FLAGS.device == "android":
         try:
