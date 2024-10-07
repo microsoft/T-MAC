@@ -164,9 +164,7 @@ def cmake_llamacpp():
         command.append("-DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH")
     elif is_win():
         if is_arm():
-            command.append("-DCMAKE_C_COMPILER=clang")
-            command.append("-DCMAKE_CXX_COMPILER=clang++")
-            command.append("-G Ninja")
+            command.append("--preset arm64-windows-llvm-release")
         else:
             command.append("-T ClangCL")
     else:
