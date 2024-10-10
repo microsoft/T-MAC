@@ -5,8 +5,12 @@ from pathlib import Path
 import os
 import logging
 import json
+import configparser
 
 import numpy as np
+
+from t_mac.weights import preprocess_weights
+
 
 
 logger = logging.getLogger("model_utils")
@@ -113,7 +117,7 @@ class _Model:
         self.is_safetensors = len(self.part_names) > 0
         if not self.is_safetensors:
             self.part_names = _Model.get_model_part_names(self.dir_model, "pytorch_model", ".bin")
-    
+
     @staticmethod
     def get_model_part_names(dir_model: Path, prefix: str, suffix: str) -> List[str]:
         part_names: list[str] = []
@@ -170,7 +174,7 @@ class _Model:
             raise RuntimeError("Models in {} not in GPTQ format".format(self.dir_model))
 
         return ks
-    
+
     @staticmethod
     def load_hparams(dir_model):
         with open(dir_model / "config.json", "r", encoding="utf-8") as f:
@@ -192,6 +196,7 @@ def extract_kernel_shapes(model_arch: Optional[str] = "gptq-auto", model_dir: Op
 
 def get_quantization_config(model_dir: Optional[str] = None) -> dict:
     hparams = _Model.load_hparams(Path(model_dir))
+    # GPTQ
     quantization_config = hparams.get("quantization_config", {})
     desc_act = quantization_config.get("desc_act", False)
     assert not desc_act, "desc_act=True currently unsupported by T-MAC"
@@ -200,6 +205,8 @@ def get_quantization_config(model_dir: Optional[str] = None) -> dict:
     bits = quantization_config.get("bits", 0)
     sym = quantization_config.get("sym", False)
     quant_method = quantization_config.get("quant_method", "")
+    # BitNet
+    weight_bits = hparams.get("weight_bits", 0)
 
     return {
         "quantizer": quantizer,
@@ -207,4 +214,36 @@ def get_quantization_config(model_dir: Optional[str] = None) -> dict:
         "bits": bits,
         "sym": sym,
         "quant_method": quant_method,
+        "weight_bits": weight_bits,
     }
+
+
+def preprocess_for_t_mac(
+    kcfg_file: str,
+    w: np.ndarray,
+    scales: np.ndarray,
+    zeros: Optional[np.ndarray] = None,
+    bits: int = 2,
+    g: int = 4,
+) -> np.ndarray:
+
+    M, K = w.shape
+    cf = configparser.ConfigParser()
+    cf.read(kcfg_file)
+    secs = cf.sections()
+    found = False
+    for sec in secs:
+        sec_splits = str(sec).split('_')
+        if sec_splits[-4] == "m" + str(M * bits) and sec_splits[-3] == "k" + str(K):
+            bm = int(cf.get(sec, 'bm'))
+            kfactor = int(cf.get(sec, 'kfactor'))
+            simd_n_in = int(cf.get(sec, 'simd_n_in'))
+            simd_n_out = int(cf.get(sec, 'simd_n_out'))
+            found = True
+            break
+
+    if not found:
+        raise KeyError("GEMM of shape ({}, {}) is not found in {}. Please compile the kernels using T-MAC first.".format(M, K, kcfg_file))
+
+    w, scales = preprocess_weights(w, scales, zeros, bits=bits, g=g, bm=bm, kfactor=kfactor, simd_n_in=simd_n_in, simd_n_out=simd_n_out)
+    return np.concatenate([w.flatten(), scales.astype(np.float32).view(np.uint8).flatten()])

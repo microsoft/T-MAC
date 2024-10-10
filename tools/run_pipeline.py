@@ -12,7 +12,7 @@ from t_mac.model_utils import get_preset_models
 logger = logging.getLogger("run_pipeline")
 
 
-def run_command(command, pwd):
+def run_command(command, pwd, ignore_errors=False):
     print(f"  Running command in {pwd}:")
     print(f"    {' '.join(command)}")
     os.makedirs(FLAGS.logs_dir, exist_ok=True)
@@ -21,8 +21,9 @@ def run_command(command, pwd):
         try:
             subprocess.check_call(command, cwd=pwd, stdout=fp, stderr=fp)
         except subprocess.CalledProcessError as err:
-            print(RED + f"Please check {log_file} for what's wrong" + RESET)
-            exit(-1)
+            if not ignore_errors:
+                print(RED + f"Please check {log_file} for what's wrong" + RESET)
+                exit(-1)
     return log_file
 
 
@@ -83,6 +84,8 @@ def compile_kernels():
 
 
 def _clean_cmake(build_dir):
+    command = ['cmake', '--build', '.', '--target', 'clean']
+    run_command(command, build_dir, ignore_errors=True)
     shutil.rmtree(os.path.join(build_dir, "CMakeFiles"), ignore_errors=True)
     shutil.rmtree(os.path.join(build_dir, "CMakeCache.txt"), ignore_errors=True)
 
@@ -125,12 +128,13 @@ def convert_models():
     llamacpp_dir = os.path.join(ROOT_DIR, "3rdparty", "llama.cpp")
     command = [
         'python',
-        'convert-hf-to-gguf-t-mac.py',
+        'convert_hf_to_gguf.py',
         f'{model_dir}',
-        '--outtype',
-        f'{FLAGS.quant_type}',
+        '--outtype', f'{FLAGS.quant_type}',
         '--outfile', f'{out_path}',
         '--kcfg', f'{kcfg_path}',
+        '--enable-t-mac',
+        '--verbose',
     ]
     run_command(command, llamacpp_dir)
 
@@ -140,10 +144,10 @@ def cmake_llamacpp():
     cmake_prefix_path = os.path.join(ROOT_DIR, "install", "lib", "cmake", "t-mac")
     command = [
         'cmake', '..',
-        '-DLLAMA_TMAC=ON',
+        '-DGGML_TMAC=ON',
         f'-DCMAKE_PREFIX_PATH={cmake_prefix_path}',
         '-DCMAKE_BUILD_TYPE=Release',
-        '-DLLAMA_LLAMAFILE_DEFAULT=OFF',
+        '-DGGML_OPENMP=OFF',
     ]
     if FLAGS.device == "android":
         try:
@@ -154,15 +158,13 @@ def cmake_llamacpp():
         command.append("-DANDROID_ABI=arm64-v8a")
         command.append("-DANDROID_PLATFORM=android-23")
         command.append("-DCMAKE_C_FLAGS=-march=armv8.2a+dotprod+fp16")
-        command.append("-DLLAMA_METAL=OFF")
-        command.append("-DLLAMA_ACCELERATE=OFF")
+        command.append("-DGGML_METAL=OFF")
+        command.append("-DGGML_ACCELERATE=OFF")
         command.append("-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH")
         command.append("-DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH")
     elif is_win():
         if is_arm():
-            command.append("-DCMAKE_C_COMPILER=clang")
-            command.append("-DCMAKE_CXX_COMPILER=clang++")
-            command.append("-G Ninja")
+            command.append("--preset arm64-windows-llvm-release")
         else:
             command.append("-T ClangCL")
     else:
@@ -176,7 +178,7 @@ def cmake_llamacpp():
 
 def build_llamacpp():
     build_dir = get_llamacpp_build_dir()
-    command = ['cmake', '--build', '.', '--target', 'main', 'llama-bench', '--config', 'Release']
+    command = ['cmake', '--build', '.', '--target', 'llama-cli', 'llama-bench', '--config', 'Release']
     run_command(command, build_dir)
 
 
@@ -184,18 +186,18 @@ def run_inference():
     build_dir = get_llamacpp_build_dir()
     out_path = os.path.join(FLAGS.model_dir, f"ggml-model.{FLAGS.quant_type}.gguf")
     if is_win():
-        main_path = os.path.join(build_dir, "bin", "Release", "main.exe")
+        main_path = os.path.join(build_dir, "bin", "Release", "llama-cli.exe")
         if not os.path.exists(main_path):
-            main_path = os.path.join(build_dir, "bin", "main")
+            main_path = os.path.join(build_dir, "bin", "llama-cli")
     else:
-        main_path = os.path.join(build_dir, "bin", "main")
+        main_path = os.path.join(build_dir, "bin", "llama-cli")
     prompt = "Microsoft Corporation is an American multinational corporation and technology company headquartered in Redmond, Washington."
     if FLAGS.device == "android":
         remote_bin_path = os.path.join(FLAGS.remote_dir, "bin")
         # TODO: verify in Windows
         command = ['push', os.path.join(build_dir, "bin"), FLAGS.remote_dir]
         run_adb_command(command, build_dir)
-        remote_main_path = os.path.join(remote_bin_path, "main")
+        remote_main_path = os.path.join(remote_bin_path, "llama-cli")
         command = ['shell', 'chmod', '-R', '+x', remote_bin_path]
         run_adb_command(command, build_dir)
         remote_out_path = os.path.join(
@@ -276,7 +278,7 @@ def parse_args():
     parser.add_argument("-gs", "--group_size", type=int, default=None, help="Don't set this argument if you don't know its meaning.")
     parser.add_argument("-ags", "--act_group_size", type=int, default=None, help="Don't set this argument if you don't know its meaning.")
     parser.add_argument("-ld", "--logs_dir", type=str, default="logs")
-    parser.add_argument("-q", "--quant_type", type=str, choices=["in", "i1", "i2", "i3", "i4"], default="in")
+    parser.add_argument("-q", "--quant_type", type=str, choices=["int_n", "f16", "f32"], default="int_n")
     parser.add_argument("-zp", "--zero_point", action="store_true", help="Enforce enable zero_point. Required by EfficientQAT models.")
     parser.add_argument("-nzp", "--no_zero_point", action="store_false", help="Enforce disable zero_point. Don't set this argument if you don't know its meaning.")
 

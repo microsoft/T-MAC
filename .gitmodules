@@ -4,3 +4,4 @@
 [submodule "3rdparty/llama.cpp"]
 	path = 3rdparty/llama.cpp
 	url = https://github.com/kaleid-liner/llama.cpp
+	branch = master-rebased
