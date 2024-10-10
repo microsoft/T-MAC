@@ -508,7 +508,10 @@ class QGeMMLUTBitsPreprocessorCodegen(OpCodegen):
             return 1.0 / s if s != 0 else 0
 
         ils = np.vectorize(recp)(lut_scales).astype(self.out_dtype)
-        qlut = np.rint((qlut.transpose(0, 2, 1) * ils).transpose(0, 2, 1).reshape(N, K // self.g, 1 << self.g)).astype(self.dtype)
+        qlut = np.rint(
+            (qlut.transpose(2, 0, 1).reshape(-1, qlut.shape[0] * qlut.shape[1]) * ils.reshape(1, qlut.shape[0] * qlut.shape[1]))
+            .reshape(qlut.shape[2], qlut.shape[0], qlut.shape[1]).transpose(1, 2, 0).reshape(N, K // self.g, 1 << self.g)
+        ).astype(self.dtype)
 
         return [b_t, lut_scales, lut_biases, qlut]
 
