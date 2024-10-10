@@ -196,6 +196,7 @@ def extract_kernel_shapes(model_arch: Optional[str] = "gptq-auto", model_dir: Op
 
 def get_quantization_config(model_dir: Optional[str] = None) -> dict:
     hparams = _Model.load_hparams(Path(model_dir))
+    # GPTQ
     quantization_config = hparams.get("quantization_config", {})
     desc_act = quantization_config.get("desc_act", False)
     assert not desc_act, "desc_act=True currently unsupported by T-MAC"
@@ -204,6 +205,8 @@ def get_quantization_config(model_dir: Optional[str] = None) -> dict:
     bits = quantization_config.get("bits", 0)
     sym = quantization_config.get("sym", False)
     quant_method = quantization_config.get("quant_method", "")
+    # BitNet
+    weight_bits = hparams.get("weight_bits", 0)
 
     return {
         "quantizer": quantizer,
@@ -211,6 +214,7 @@ def get_quantization_config(model_dir: Optional[str] = None) -> dict:
         "bits": bits,
         "sym": sym,
         "quant_method": quant_method,
+        "weight_bits": weight_bits,
     }
 
 

@@ -12,6 +12,8 @@
 
 ## News
 
+- 10/10/2024 🚀🚀: By updating and rebasing our llama.cpp version, T-MAC now support more models (e.g., qwen2) and the end-to-end performance is further improved by 10~15%! Try qwen2 using [the Official GPTQ model](https://huggingface.co/Qwen/Qwen2-7B-Instruct-GPTQ-Int4).
+
 - 08/21/2024 🎉🎉: T-MAC paper is accepted by EuroSys 2025.
 
 - 08/17/2024 🚀: T-MAC now supports 1/2/4-bit quantized models of (almost) any architecture in GPTQ format.
@@ -31,6 +33,8 @@ T-MAC is a kernel library to directly support mixed-precision matrix multiplicat
 T-MAC achieves a token generation throughput of 20 tokens/sec with a single core and 48 tokens/sec with four cores on Surface Laptop 7 for 3B BitNet, which is a 4~5x speedup compared to SOTA CPU low-bit framework ([llama.cpp](https://github.com/ggerganov/llama.cpp)). T-MAC can even reach 11 tokens/sec on lower-end devices like Raspberry Pi 5.
 
 ## End-2-End Speedup
+
+> All of the following data is profiled based on llama.cpp b2794 (May 2024). The latest T-MAC and baseline, after updating the llama.cpp version, is further optimized by 10~15%.
 
 We evaluate the token generation performance of different models on five different devices: Surface Laptop 7, Apple M2-Ultra, Jetson AGX Orin, Raspberry Pi 5 and Surface Book 3. Check [datasheet](docs/profiling_data.md) for more details.
 
