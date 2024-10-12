@@ -167,3 +167,4 @@ src.S
 src.c
 src.ll
 install/
+logs/
