@@ -246,4 +246,4 @@ def preprocess_for_t_mac(
         raise KeyError("GEMM of shape ({}, {}) is not found in {}. Please compile the kernels using T-MAC first.".format(M, K, kcfg_file))
 
     w, scales = preprocess_weights(w, scales, zeros, bits=bits, g=g, bm=bm, kfactor=kfactor, simd_n_in=simd_n_in, simd_n_out=simd_n_out)
-    return np.concatenate([w.flatten(), scales.astype(np.float32).view(np.uint8).flatten()])
+    return np.concatenate([w.flatten(), scales.astype(np.float32).copy().view(np.uint8).flatten()])
