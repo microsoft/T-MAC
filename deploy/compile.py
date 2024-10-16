@@ -89,15 +89,19 @@ def compile(
     body_code = ""
     config = configparser.ConfigParser()
     kernel_shapes = extract_kernel_shapes(FLAGS.preset_model, FLAGS.model_dir)
-    quantization_config = get_quantization_config(FLAGS.model_dir)
-    if quantization_config["quant_method"] != "gptq":
-        quantization_config = None
 
     group_size = FLAGS.group_size
     zero_point = FLAGS.zero_point
-    if quantization_config is not None:
-        group_size = quantization_config["group_size"]
-        zero_point = not quantization_config["sym"]
+    quantization_config = None
+    if FLAGS.model_dir is not None:
+        quantization_config = get_quantization_config(FLAGS.model_dir)
+        if quantization_config["quant_method"] != "gptq":
+            quantization_config = None
+
+        if quantization_config is not None:
+            group_size = quantization_config["group_size"]
+            zero_point = not quantization_config["sym"]
+
     for bits, M, K, N, m_groups in kernel_shapes:
         if quantization_config is not None and bits != quantization_config["bits"]:
             logger.warning("Invalid kernels")
