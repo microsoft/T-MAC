@@ -12,6 +12,8 @@
 
 ## News
 
+- 10/21/2024 🎉🎉: [BitNet](https://github.com/microsoft/BitNet), powered by T-MAC, is open-sourced.
+
 - 10/10/2024 🚀🚀: By updating and rebasing our llama.cpp version, T-MAC now support more models (e.g., qwen2) and the end-to-end performance is further improved by 10~15%! Try qwen2 using [the Official GPTQ model](https://huggingface.co/Qwen/Qwen2-7B-Instruct-GPTQ-Int4).
 
 - 08/21/2024 🎉🎉: T-MAC paper is accepted by EuroSys 2025.
@@ -148,7 +150,7 @@ T-MAC achieves comparable 2-bit mpGEMM performance compared to CUDA GPU on Jetso
 First, install `cmake`, `zstd` (dependency of llvm) and `libomp` (dependency of tvm). Homebrew is recommended:
 
 ```bash
-brew install cmake zlib libomp
+brew install cmake zstd libomp
 ```
 
 > If `zstd` is installed through homebrew, than `cmake` should also be installed through homebrew to ensure that `zstd` can be found by `cmake`.
