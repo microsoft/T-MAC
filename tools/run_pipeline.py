@@ -178,7 +178,7 @@ def cmake_llamacpp():
 
 def build_llamacpp():
     build_dir = get_llamacpp_build_dir()
-    command = ['cmake', '--build', '.', '--target', 'llama-cli', 'llama-bench', '--config', 'Release']
+    command = ['cmake', '--build', '.', '--target', 'llama-cli', 'llama-bench', 'llama-quantize', '--config', 'Release']
     run_command(command, build_dir)
 
 
