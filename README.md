@@ -270,7 +270,7 @@ cmake --build . --config Release -- /m
 
 As clang tools in Visual Studio are in fact emulated x64 tools, please install the native arm64 tools manually.
 
-- Install CMake from [Offical Windows ARM installer](https://github.com/Kitware/CMake/releases/download/v3.30.1/cmake-3.30.1-windows-arm64.msi).
+- Install CMake from [Official Windows ARM installer](https://github.com/Kitware/CMake/releases/download/v3.30.1/cmake-3.30.1-windows-arm64.msi).
 - Download Ninja from [Release Page](https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-winarm64.zip) and add to Path.
 - Install Clang from [Release Page](https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/LLVM-17.0.6-woa64.exe).
 
