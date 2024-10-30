@@ -68,7 +68,7 @@ echo "CONVERT_MODEL: $CONVERT_MODEL"
 echo "RUN_ONLY: $RUN_ONLY"
 
 
-if [ -z "$RUN_ONLY" ]; then
+if [ -n "$RUN_ONLY" ]; then
     echo "===  python tools/run_pipeline.py -o $MODEL_DIR -m $KERNEL_NAME -nt 4 -s 0,1,2,4,5 "${EXTRA_COMPILE_ARGS[@]}"  ==="
     python tools/run_pipeline.py -o $MODEL_DIR -m $KERNEL_NAME -nt 4 -s 0,1,2,4,5 ${EXTRA_COMPILE_ARGS[@]}
     if $CONVERT_MODEL; then
