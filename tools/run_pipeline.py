@@ -16,10 +16,14 @@ def run_command(command, pwd, ignore_errors=False):
     print(f"  Running command in {pwd}:")
     print(f"    {' '.join(command)}")
     os.makedirs(FLAGS.logs_dir, exist_ok=True)
-    log_file = os.path.join(FLAGS.logs_dir, datetime.now().strftime("%Y-%m-%d-%H-%M-%S.log"))
+    command_name = command[0].split(os.path.sep)[-1]
+    log_file = os.path.join(FLAGS.logs_dir, f"{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}_{command_name}.log")
     with open(log_file, "w") as fp:
         try:
-            subprocess.check_call(command, cwd=pwd, stdout=fp, stderr=fp)
+            if "llama-bench" in command_name:
+                subprocess.check_call(command, cwd=pwd)
+            else:
+                subprocess.check_call(command, cwd=pwd, stdout=fp, stderr=fp)
         except subprocess.CalledProcessError as err:
             if not ignore_errors:
                 print(RED + f"Please check {log_file} for what's wrong" + RESET)
@@ -48,6 +52,7 @@ def get_llamacpp_build_dir():
 
 
 def compile_kernels():
+    model_name = f"{FLAGS.model}_{str(FLAGS.quant_type).upper()}"
     deploy_dir = os.path.join(ROOT_DIR, "deploy")
     tuned_dir = os.path.join(deploy_dir, "tuned")
     prebuilt_dir = os.path.join(tuned_dir, f"{get_arch(FLAGS.device)}-{FLAGS.model}")
@@ -56,10 +61,18 @@ def compile_kernels():
         shutil.copytree(prebuilt_dir, tuned_dir, dirs_exist_ok=True)
         return
 
+    # Clear previous tune.log
+    command = [
+        'rm',
+        os.path.join("tuned", "preprocessor", "tune.log"),
+        os.path.join("tuned", "qgemm_lut", "tune.log"),
+    ]
+    run_command(command, deploy_dir, ignore_errors=True)
+
     qargs = get_quant_args()
     command = [
         'python', 'compile.py',
-        '-o', 'tuned',
+        '-o', f'{os.path.join("tuned", model_name)}',
         '-da',
         '-nt', f'{FLAGS.num_threads}',
         '-tb',
@@ -81,6 +94,15 @@ def compile_kernels():
     if FLAGS.verbose:
         command.append('-v')
     run_command(command, deploy_dir)
+
+    # Move to pre-install directory
+    command = [
+        'cp',
+        '-r',
+        os.path.join("tuned", model_name, '*'),
+        os.path.join("tuned"),
+    ]
+    run_command(command, deploy_dir, ignore_errors=True)
 
 
 def _clean_cmake(build_dir):
@@ -123,20 +145,39 @@ def convert_models():
     model_dir = FLAGS.model_dir
     if not os.path.exists(model_dir):
         raise FileNotFoundError(model_dir)
-    out_path = os.path.join(model_dir, f"ggml-model.{FLAGS.quant_type}.gguf")
+    
+    out_type = FLAGS.quant_type
+    if FLAGS.quant_type == "q4_0":
+        out_type = "f16"
+    
+    model_name = f"{os.path.split(model_dir)[-1]}.{str(out_type).upper()}.gguf"
+    out_path = os.path.join(model_dir, model_name)
     kcfg_path = os.path.join(ROOT_DIR, "install", "lib", "kcfg.ini")
     llamacpp_dir = os.path.join(ROOT_DIR, "3rdparty", "llama.cpp")
     command = [
         'python',
         'convert_hf_to_gguf.py',
         f'{model_dir}',
-        '--outtype', f'{FLAGS.quant_type}',
+        '--outtype', f'{out_type}',
         '--outfile', f'{out_path}',
         '--kcfg', f'{kcfg_path}',
         '--enable-t-mac',
         '--verbose',
     ]
     run_command(command, llamacpp_dir)
+
+    if FLAGS.quant_type == "q4_0":
+        quantized_model_name = f"{os.path.split(model_dir)[-1]}.Q4_0.gguf"
+        quantized_out_path = os.path.join(model_dir, quantized_model_name)
+        command = [
+            './build/bin/llama-quantize',
+            '--token-embedding-type', 'f16',
+            '--output-tensor-type', 'f16',
+            f'{out_path}',
+            f'{quantized_out_path}',
+            'q4_0',
+        ]
+        run_command(command, llamacpp_dir)
 
 
 def cmake_llamacpp():
@@ -148,6 +189,7 @@ def cmake_llamacpp():
         f'-DCMAKE_PREFIX_PATH={cmake_prefix_path}',
         '-DCMAKE_BUILD_TYPE=Release',
         '-DGGML_OPENMP=OFF',
+        f'-DGGML_TMAC_RECHUNK={"ON" if FLAGS.rechunk else "OFF"}',
     ]
     if FLAGS.device == "android":
         try:
@@ -184,7 +226,8 @@ def build_llamacpp():
 
 def run_inference():
     build_dir = get_llamacpp_build_dir()
-    out_path = os.path.join(FLAGS.model_dir, f"ggml-model.{FLAGS.quant_type}.gguf")
+    model_name = f"{os.path.split(FLAGS.model_dir)[-1]}.{str(FLAGS.inference_type).upper()}.gguf"
+    out_path = os.path.join(FLAGS.model_dir, model_name)
     if is_win():
         main_path = os.path.join(build_dir, "bin", "Release", "llama-cli.exe")
         if not os.path.exists(main_path):
@@ -229,13 +272,66 @@ def run_inference():
             '-m', f'{out_path}',
             '-n', '128',
             '-t', f'{FLAGS.num_threads}',
-            '-p', prompt,
+            '-p', f'{prompt}',
             '-ngl', '0',
             '-c', '2048'
         ]
         log_file = run_command(command, build_dir)
     print(GREEN + f"Check {log_file} for inference output" + RESET)
 
+
+def run_llama_bench():
+    build_dir = get_llamacpp_build_dir()
+    model_name = f"{os.path.split(FLAGS.model_dir)[-1]}.{str(FLAGS.inference_type).upper()}.gguf"
+    out_path = os.path.join(FLAGS.model_dir, model_name)
+    if is_win():
+        main_path = os.path.join(build_dir, "bin", "Release", "llama-bench.exe")
+        if not os.path.exists(main_path):
+            main_path = os.path.join(build_dir, "bin", "llama-bench")
+    else:
+        main_path = os.path.join(build_dir, "bin", "llama-bench")
+    prompt = 256
+    # TODO: verify in Android
+    if FLAGS.device == "android":
+        remote_bin_path = os.path.join(FLAGS.remote_dir, "bin")
+        command = ['push', os.path.join(build_dir, "bin"), FLAGS.remote_dir]
+        run_adb_command(command, build_dir)
+        remote_main_path = os.path.join(remote_bin_path, "llama-bench")
+        command = ['shell', 'chmod', '-R', '+x', remote_bin_path]
+        run_adb_command(command, build_dir)
+        remote_out_path = os.path.join(
+            FLAGS.remote_dir,
+            f"{os.path.basename(FLAGS.model_dir)}-{os.path.basename(out_path)}",
+        )
+        if not FLAGS.skip_push_model:
+            command = ['push', out_path, remote_out_path]
+            run_adb_command(command, build_dir)
+        kcfg_path = os.path.join(ROOT_DIR, "install", "lib", "kcfg.ini")
+        remote_kcfg_path = os.path.join(FLAGS.remote_dir, "kcfg.ini")
+        command = ['push', kcfg_path, remote_kcfg_path]
+        run_adb_command(command, build_dir)
+        command = [
+            'shell',
+            f'TMAC_KCFG_FILE={remote_kcfg_path}',
+            f'{remote_main_path}',
+            '-m', f'{remote_out_path}',
+            '-n', '256',
+            '-t', f'{FLAGS.num_threads}',
+            '-p', f'{prompt}',
+            '-ngl', '0',
+        ]
+        log_file = run_adb_command(command, build_dir)
+    else:
+        command = [
+            f'{main_path}',
+            '-m', f'{out_path}',
+            '-n', '256',
+            '-t', f'{FLAGS.num_threads}',
+            '-p', f'{prompt}',
+            '-ngl', '0',
+        ]
+        log_file = run_command(command, build_dir)
+    print(GREEN + f"Check {log_file} for llama-bench output" + RESET)
 
 STEPS = [
     ("Compile kernels", compile_kernels),
@@ -245,6 +341,7 @@ STEPS = [
     ("Build llama.cpp CMakeFiles", cmake_llamacpp),
     ("Build llama.cpp", build_llamacpp),
     ("Run inference", run_inference),
+    ("Run llama-bench", run_llama_bench)
 ]
 
 
@@ -278,7 +375,10 @@ def parse_args():
     parser.add_argument("-gs", "--group_size", type=int, default=None, help="Don't set this argument if you don't know its meaning.")
     parser.add_argument("-ags", "--act_group_size", type=int, default=None, help="Don't set this argument if you don't know its meaning.")
     parser.add_argument("-ld", "--logs_dir", type=str, default="logs")
-    parser.add_argument("-q", "--quant_type", type=str, choices=["int_n", "f16", "f32"], default="int_n")
+    parser.add_argument("-q", "--quant_type", type=str, choices=["int_n", "f16", "f32", "tq1_0", "tq2_0", "q4_0"], default=None,
+                        help="Quantization model type. This will override inference_type.")
+    parser.add_argument("-it", "--inference_type", type=str, choices=["int_n", "f16", "f32", "tq1_0", "tq2_0", "q4_0"], default="int_n",
+                        help="Inference model type. This will be overridden by quant_type if quant_type is set.")
     parser.add_argument("-zp", "--zero_point", action="store_true", help="Enforce enable zero_point. Required by EfficientQAT models.")
     parser.add_argument("-nzp", "--no_zero_point", action="store_false", help="Enforce disable zero_point. Don't set this argument if you don't know its meaning.")
 
@@ -293,8 +393,15 @@ def parse_args():
     parser.add_argument("-ndk", "--ndk_home", type=str, default="", help="NDK home")
     parser.add_argument("-spm", "--skip_push_model", action="store_true", help="Suppose the model is unchanged to skip pushing the model file")
 
+    parser.add_argument("-rc", "--rechunk", action="store_true", help="Set this argument if you want to use rechunk in computation.")
+
     parser.set_defaults(zero_point=None)
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    if args.quant_type is not None:
+        args.inference_type = args.quant_type
+    
+    return args
 
 
 def get_quant_args():
