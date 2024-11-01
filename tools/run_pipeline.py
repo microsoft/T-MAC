@@ -96,13 +96,9 @@ def compile_kernels():
     run_command(command, deploy_dir)
 
     # Move to pre-install directory
-    command = [
-        'cp',
-        '-r',
-        os.path.join("tuned", model_name, '*'),
-        os.path.join("tuned"),
-    ]
-    run_command(command, deploy_dir, ignore_errors=True)
+    kernel_dir = os.path.join(tuned_dir, model_name)
+    print(f"  Copy built kernels from {kernel_dir} to {tuned_dir}")
+    shutil.copytree(kernel_dir, tuned_dir, dirs_exist_ok=True)
 
 
 def _clean_cmake(build_dir):
