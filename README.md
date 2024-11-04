@@ -313,14 +313,14 @@ We have provided an **all-in-one script**. Invoke it with:
 ```bash
 pip install 3rdparty/llama.cpp/gguf-py
 huggingface-cli download 1bitLLM/bitnet_b1_58-3B --local-dir ${model_dir}
-python tools/run_pipeline.py -o ${model_dir}
+python tools/run_pipeline.py -o ${model_dir} -q int_n
 ```
 
 We have also supported models in GTPQ format from [GPTQModel](https://github.com/ModelCloud/GPTQModel)/[EfficientQAT](https://github.com/OpenGVLab/EfficientQAT). Try it out with officially released EfficientQAT (of GPTQ format) [Llama-3-8b-instruct-w2-g128](https://huggingface.co/ChenMnZ/Llama-3-8b-instruct-EfficientQAT-w2g128-GPTQ):
 
 ```bash
 huggingface-cli download ChenMnZ/Llama-3-8b-instruct-EfficientQAT-w2g128-GPTQ --local-dir ${model_dir}
-python tools/run_pipeline.py -o ${model_dir} -m llama-3-8b-2bit
+python tools/run_pipeline.py -o ${model_dir} -m llama-3-8b-2bit -q int_n
 ```
 
 > - Use `-p` or `-s` argument to select the steps you want to run.
