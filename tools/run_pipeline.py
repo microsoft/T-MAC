@@ -373,7 +373,7 @@ def parse_args():
     parser.add_argument("-ld", "--logs_dir", type=str, default="logs")
     parser.add_argument("-q", "--quant_type", type=str, choices=["int_n", "f16", "f32", "tq1_0", "tq2_0", "q4_0"], default=None,
                         help="Quantization model type. This will override inference_type.")
-    parser.add_argument("-it", "--inference_type", type=str, choices=["int_n", "f16", "f32", "tq1_0", "tq2_0", "q4_0"], default="int_n",
+    parser.add_argument("-it", "--inference_type", type=str, default="int_n",
                         help="Inference model type. This will be overridden by quant_type if quant_type is set.")
     parser.add_argument("-zp", "--zero_point", action="store_true", help="Enforce enable zero_point. Required by EfficientQAT models.")
     parser.add_argument("-nzp", "--no_zero_point", action="store_false", help="Enforce disable zero_point. Don't set this argument if you don't know its meaning.")
