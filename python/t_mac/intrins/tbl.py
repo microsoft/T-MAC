@@ -41,18 +41,18 @@ def tbl(
 
     if m_groups == -1:
         if zero_point:
-            scales_shape = (1, m // bits * 2)
+            scales_shape = (kfactor * g // act_group_size, m // bits * 2)
             def _get_scale(m, k):
-                return Scales[0, m // bits * 2] - Scales[0, m // bits * 2 + 1]
+                return Scales[k * g // act_group_size, m // bits * 2] - Scales[k * g // act_group_size, m // bits * 2 + 1]
         else:
-            scales_shape = (1, m // bits)
+            scales_shape = (kfactor * g // act_group_size, m // bits)
             def _get_scale(m, k):
-                return Scales[0, m // bits]
+                return Scales[k * g // act_group_size, m // bits]
         scale_buffer_strides = [te.var("ss"), 1]
     else:
-        scales_shape = (1,)
+        scales_shape = (kfactor * g // act_group_size,)
         def _get_scale(m, k):
-            return Scales[0]
+            return Scales[k * g // act_group_size]
         scale_buffer_strides = [1]
 
     alpha = te.const(get_bits_alphas(bits)[0], dtype=out_dtype)
