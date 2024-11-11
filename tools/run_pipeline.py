@@ -181,7 +181,7 @@ def cmake_llamacpp():
     cmake_prefix_path = os.path.join(ROOT_DIR, "install", "lib", "cmake", "t-mac")
     command = [
         'cmake', '..',
-        '-DGGML_TMAC=ON',
+        f'-DGGML_TMAC={"OFF" if FLAGS.disable_t_mac else "ON"}',
         f'-DCMAKE_PREFIX_PATH={cmake_prefix_path}',
         '-DCMAKE_BUILD_TYPE=Release',
         '-DGGML_OPENMP=OFF',
@@ -216,7 +216,7 @@ def cmake_llamacpp():
 
 def build_llamacpp():
     build_dir = get_llamacpp_build_dir()
-    command = ['cmake', '--build', '.', '--target', 'llama-cli', 'llama-bench', 'llama-quantize', '--config', 'Release']
+    command = ['cmake', '--build', '.', '--target', 'llama-cli', 'llama-bench', 'llama-quantize', 'llama-perplexity', '--config', 'Release']
     run_command(command, build_dir)
 
 
@@ -311,7 +311,7 @@ def run_llama_bench():
             f'TMAC_KCFG_FILE={remote_kcfg_path}',
             f'{remote_main_path}',
             '-m', f'{remote_out_path}',
-            '-n', '256',
+            '-n', '128',
             '-t', f'{FLAGS.num_threads}',
             '-p', f'{prompt}',
             '-ngl', '0',
@@ -321,7 +321,7 @@ def run_llama_bench():
         command = [
             f'{main_path}',
             '-m', f'{out_path}',
-            '-n', '256',
+            '-n', '128',
             '-t', f'{FLAGS.num_threads}',
             '-p', f'{prompt}',
             '-ngl', '0',
@@ -390,6 +390,7 @@ def parse_args():
     parser.add_argument("-spm", "--skip_push_model", action="store_true", help="Suppose the model is unchanged to skip pushing the model file")
 
     parser.add_argument("-rc", "--rechunk", action="store_true", help="Set this argument if you want to use rechunk in computation.")
+    parser.add_argument("--disable-t-mac", action="store_true", help="Set this argument if you want to disable T-MAC.")
 
     parser.set_defaults(zero_point=None)
     args = parser.parse_args()
