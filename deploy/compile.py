@@ -95,7 +95,7 @@ def compile(
     quantization_config = None
     if FLAGS.model_dir is not None:
         quantization_config = get_quantization_config(FLAGS.model_dir)
-        if quantization_config["quant_method"] != "gptq":
+        if quantization_config["quant_method"] not in ["gptq", "gptq_v2"]:
             quantization_config = None
 
         if quantization_config is not None:
