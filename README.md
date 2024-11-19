@@ -197,7 +197,11 @@ The command will download clang+llvm and build tvm from source. So it might take
 
 Due to lack of stable clang+llvm prebuilt on Windows, Conda + Visual Studio is recommended to install dependencies.
 
-First, install Visual Studio 2019 and toggle on `Desk development with C++` and `C++ Clang tools for Windows`. Then, create conda environment within `Developer PowerShell for VS 2019`:
+First, install Visual Studio 2022(/2019) and toggle on `Desk development with C++`. DO NOT toggle on `C++ Clang tools for Windows` because the Clang version is probably not compatible. And then install Clang-17.0.6 from [LLVM official release](https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/LLVM-17.0.6-win64.exe).
+
+> Remember adding the installed directory `/path/to/LLVM/bin/` into your computer's environment variable `PATH`.
+
+Then, create conda environment within `Developer PowerShell for VS 20XX`.
 
 ```powershell
 git clone --recursive https://github.com/microsoft/T-MAC.git
@@ -205,8 +209,6 @@ cd T-MAC
 conda env create --file conda\tvm-build-environment.yaml
 conda activate tvm-build
 ```
-
-> If you are using Visual Studio 2022, replace `llvmdev =14.0.6` with `llvmdev =17.0.6` in the yaml file.
 
 After that, build TVM with:
 
@@ -224,6 +226,8 @@ cmake .. -A x64
 cmake --build . --config Release -- /m
 ```
 
+> If you encounter errors like `string sub-command regex, mode replace: regex "$" matched an empty string.` during running `cmake .. -A x64` while building TVM, don't worry, and just run `cmake .. -A x64` again. Check [this issue of LLVM](https://github.com/llvm/llvm-project/issues/83802) for more details.
+
 Install `t_mac` from the source:
 
 ```powershell
@@ -239,7 +243,11 @@ pip install -e . -v
 
 > The following process could be more complicated. However, if your deployment scenerio doesn't require a native build, you can use WSL/docker and follow the Ubuntu guide.
 
-First, install Visual Studio 2022(/2019) and toggle on `Desk development with C++`. Then, create conda environment within `Developer PowerShell for VS 20XX`.
+First, install Visual Studio 2022(/2019) and toggle on `Desk development with C++`. DO NOT toggle on `C++ Clang tools for Windows` because the Clang version is probably not compatible. And then install Clang-17.0.6 from [LLVM official release](https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/LLVM-17.0.6-win64.exe).
+
+> Remember adding the installed directory `/path/to/LLVM/bin/` into your computer's environment variable `PATH`.
+
+Then, create conda environment within `Developer PowerShell for VS 20XX`.
 
 ```powershell
 git clone --recursive https://github.com/microsoft/T-MAC.git
@@ -247,8 +255,6 @@ cd T-MAC
 conda env create --file conda\tvm-build-environment.yaml
 conda activate tvm-build
 ```
-
-Remember to replace `llvmdev =14.0.6` with `llvmdev =17.0.6` in the yaml file if you are using Visual Studio 2022 (which is recommended on ARM64 for better performance).
 
 After that, build TVM with:
 
