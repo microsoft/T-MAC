@@ -62,12 +62,12 @@ def compile_kernels():
         return
 
     # Clear previous tune.log
-    command = [
-        'rm',
-        os.path.join("tuned", "preprocessor", "tune.log"),
-        os.path.join("tuned", "qgemm_lut", "tune.log"),
-    ]
-    run_command(command, deploy_dir, ignore_errors=True)
+    # command = [
+    #     'rm',
+    #     os.path.join("tuned", "preprocessor", "tune.log"),
+    #     os.path.join("tuned", "qgemm_lut", "tune.log"),
+    # ]
+    # run_command(command, deploy_dir, ignore_errors=True)
 
     qargs = get_quant_args()
     command = [
@@ -138,7 +138,7 @@ def install_t_mac():
 
 
 def convert_models():
-    model_dir = FLAGS.model_dir
+    model_dir = str(FLAGS.model_dir).rstrip('\\').rstrip('/')
     if not os.path.exists(model_dir):
         raise FileNotFoundError(model_dir)
     
