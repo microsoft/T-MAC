@@ -62,17 +62,16 @@ def compile_kernels():
         return
 
     # Clear previous tune.log
-    # command = [
-    #     'rm',
-    #     os.path.join("tuned", "preprocessor", "tune.log"),
-    #     os.path.join("tuned", "qgemm_lut", "tune.log"),
-    # ]
-    # run_command(command, deploy_dir, ignore_errors=True)
+    preprocessor_dir = os.path.join(tuned_dir, "preprocessor")
+    qgemm_lut_dir = os.path.join(tuned_dir, "qgemm_lut")
+    print(f"  Removing files in {preprocessor_dir} and {qgemm_lut_dir}...")
+    shutil.rmtree(preprocessor_dir, ignore_errors=True)
+    shutil.rmtree(qgemm_lut_dir, ignore_errors=True)
 
     qargs = get_quant_args()
     command = [
         'python', 'compile.py',
-        '-o', f'{os.path.join("tuned", model_name)}',
+        '-o', f'{os.path.join(tuned_dir, model_name)}',
         '-da',
         '-nt', f'{FLAGS.num_threads}',
         '-tb',
@@ -97,7 +96,7 @@ def compile_kernels():
 
     # Move to pre-install directory
     kernel_dir = os.path.join(tuned_dir, model_name)
-    print(f"  Copy built kernels from {kernel_dir} to {tuned_dir}")
+    print(f"  Copying built kernels from {kernel_dir} to {tuned_dir}...")
     shutil.copytree(kernel_dir, tuned_dir, dirs_exist_ok=True)
 
 
