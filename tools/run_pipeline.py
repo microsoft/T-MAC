@@ -221,8 +221,9 @@ def build_llamacpp():
 
 def run_inference():
     build_dir = get_llamacpp_build_dir()
-    model_name = f"{os.path.split(FLAGS.model_dir)[-1]}.{str(FLAGS.inference_type).upper()}.gguf"
-    out_path = os.path.join(FLAGS.model_dir, model_name)
+    model_dir = str(FLAGS.model_dir).rstrip('\\').rstrip('/')
+    model_name = f"{os.path.split(model_dir)[-1]}.{str(FLAGS.inference_type).upper()}.gguf"
+    out_path = os.path.join(model_dir, model_name)
     if is_win():
         main_path = os.path.join(build_dir, "bin", "Release", "llama-cli.exe")
         if not os.path.exists(main_path):
@@ -240,7 +241,7 @@ def run_inference():
         run_adb_command(command, build_dir)
         remote_out_path = os.path.join(
             FLAGS.remote_dir,
-            f"{os.path.basename(FLAGS.model_dir)}-{os.path.basename(out_path)}",
+            f"{os.path.basename(model_dir)}-{os.path.basename(out_path)}",
         )
         if not FLAGS.skip_push_model:
             command = ['push', out_path, remote_out_path]
@@ -277,8 +278,9 @@ def run_inference():
 
 def run_llama_bench():
     build_dir = get_llamacpp_build_dir()
-    model_name = f"{os.path.split(FLAGS.model_dir)[-1]}.{str(FLAGS.inference_type).upper()}.gguf"
-    out_path = os.path.join(FLAGS.model_dir, model_name)
+    model_dir = str(FLAGS.model_dir).rstrip('\\').rstrip('/')
+    model_name = f"{os.path.split(model_dir)[-1]}.{str(FLAGS.inference_type).upper()}.gguf"
+    out_path = os.path.join(model_dir, model_name)
     if is_win():
         main_path = os.path.join(build_dir, "bin", "Release", "llama-bench.exe")
         if not os.path.exists(main_path):
@@ -296,7 +298,7 @@ def run_llama_bench():
         run_adb_command(command, build_dir)
         remote_out_path = os.path.join(
             FLAGS.remote_dir,
-            f"{os.path.basename(FLAGS.model_dir)}-{os.path.basename(out_path)}",
+            f"{os.path.basename(model_dir)}-{os.path.basename(out_path)}",
         )
         if not FLAGS.skip_push_model:
             command = ['push', out_path, remote_out_path]
