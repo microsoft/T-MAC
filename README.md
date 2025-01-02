@@ -351,7 +351,7 @@ Running STEP.2: Install T-MAC C++
     cmake --build . --target install --config Release
 Running STEP.3: Convert HF to GGUF
   Running command in /Users/user/jianyu/T-MAC/3rdparty/llama.cpp:
-    python convert-hf-to-gguf-t-mac.py /Users/user/Downloads/test_models/hf-bitnet-3B --outtype i2 --outfile /Users/user/Downloads/test_models/hf-bitnet-3B/ggml-model.i2.gguf --kcfg /Users/user/jianyu/T-MAC/install/lib/kcfg.ini
+    python convert-hf-to-gguf.py /Users/user/Downloads/test_models/hf-bitnet-3B --outtype i2 --outfile /Users/user/Downloads/test_models/hf-bitnet-3B/ggml-model.i2.gguf --kcfg /Users/user/jianyu/T-MAC/install/lib/kcfg.ini --enable-t-mac
 Running STEP.4: Build llama.cpp CMakeFiles
   Running command in /Users/user/jianyu/T-MAC/3rdparty/llama.cpp/build:
     cmake .. -DLLAMA_TMAC=ON -DCMAKE_PREFIX_PATH=/Users/user/jianyu/T-MAC/install/lib/cmake/t-mac -DCMAKE_BUILD_TYPE=Release -DLLAMA_LLAMAFILE_DEFAULT=OFF -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
