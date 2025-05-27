@@ -5,3 +5,6 @@
 	path = 3rdparty/llama.cpp
 	url = https://github.com/kaleid-liner/llama.cpp
 	branch = master-rebased
+[submodule "t-man/executorch"]
+	path = t-man/executorch
+	url = https://github.com/kaleid-liner/executorch
