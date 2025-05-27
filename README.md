@@ -12,6 +12,8 @@
 
 ## News
 
+- 10/10/2024 🚀🚀: The idea of T-MAC extends its capabilities to NPU! For more information, check out the [t-man README](t-man/README.md) and try BitNet/Qwen3/Llama3 with the demo app!
+
 - 10/21/2024 🎉🎉: [BitNet](https://github.com/microsoft/BitNet), powered by T-MAC, is open-sourced.
 
 - 10/10/2024 🚀🚀: By updating and rebasing our llama.cpp version, T-MAC now support more models (e.g., qwen2) and the end-to-end performance is further improved by 10~15%! Try qwen2 using [the Official GPTQ model](https://huggingface.co/Qwen/Qwen2-7B-Instruct-GPTQ-Int4).
@@ -23,10 +25,6 @@
 - 08/14/2024 🚀: The T-MAC GEMM (N>1) kernels are now integrated into llama.cpp to accelerate prefill. Check [Prefill speedup](#prefill-speedup) for speedup.
 
 - 07/27/2024 ✨: We've noted that T-MAC is even faster than the NPU in token generation speed on the latest Snapdragon X Elite chipset! Check [Compared to NPU](#compared-to-npu) for more details.
-
-- 07/23/2024 🚀🚀: We've enabled the execution of any 2-bit quantized Llama model in GPTQ format via T-MAC! Test it using the pretrained models released by [EfficientQAT](https://github.com/OpenGVLab/EfficientQAT).
-
-- 07/22/2024 🚀🚀: We've added native deployment support for Windows on ARM. T-MAC demonstrates a substantial 5x speedup on the Surface Laptop 7.
 
 ## Introduction
 

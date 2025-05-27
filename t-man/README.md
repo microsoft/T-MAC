@@ -17,7 +17,7 @@ By achieving up to 50 t/s token generation for [BitNet-2B-4T](https://huggingfac
 
 ### Use the Android App
 
-- Get the apk from the [release page]().
+- Get the apk from the [release page](https://github.com/microsoft/T-MAC/releases).
 - Select a model (e.g., Qwen3-8B) in the settings. The model files will be downloaded automatically (requires internet access).
 - Load the model.
 - Enjoy your conversation!
