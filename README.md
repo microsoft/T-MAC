@@ -12,7 +12,7 @@
 
 ## News
 
-- 10/10/2024 🚀🚀: The idea of T-MAC extends its capabilities to NPU! For more information, check out the [t-man README](t-man/README.md) and try BitNet/Qwen3/Llama3 with the demo app!
+- 05/28/2025 🚀🚀: The idea of T-MAC extends its capabilities to NPU! For more information, check out the [t-man README](t-man/README.md) and try BitNet/Qwen3/Llama3 with the demo app!
 
 - 10/21/2024 🎉🎉: [BitNet](https://github.com/microsoft/BitNet), powered by T-MAC, is open-sourced.
 
