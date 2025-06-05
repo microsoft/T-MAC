@@ -18,7 +18,7 @@ using ElementAccumulator = cutlass::half_t;
       cutlass::layout::ColumnMajor, ElementOutput, cutlass::layout::RowMajor,
       ElementAccumulator, cutlass::arch::OpClassTensorOp, cutlass::arch::Sm80,
       cutlass::gemm::GemmShape<128, 512/8, 32>,
-      cutlass::gemm::GemmShape<64, 256//8, 32>, cutlass::gemm::GemmShape<16, 8, 16>,
+      cutlass::gemm::GemmShape<64, 256/8, 32>, cutlass::gemm::GemmShape<16, 8, 16>,
       cutlass::epilogue::thread::LinearCombination<
           ElementOutput, 128 / cutlass::sizeof_bits<ElementOutput>::value,
           ElementAccumulator, ElementAccumulator>,
